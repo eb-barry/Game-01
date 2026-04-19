@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>紅彈射飛碟 - 三關挑戰</title>
   <link rel="manifest" href="manifest.json">
-  <link rel="icon" href="image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
   <audio id="bgm" src="BGM.mp3" loop preload="auto"></audio>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -35,7 +35,7 @@
     
     .overlay {
       position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(5, 5, 20, 0.92);
+      background: rgba(5, 5, 20, 0.95);
       display: none; flex-direction: column; justify-content: center; align-items: center;
       z-index: 20; padding: 20px;
     }
@@ -52,8 +52,12 @@
       max-width: 100%; max-height: 35vh; object-fit: contain; border-radius: 8px;
       display: block;
     }
-    .city-image.error { display: none; }
-    .city-error-msg { color: #ffaa00; font-size: 14px; text-align: center; display: none; }
+    .city-image.hidden { display: none; }
+    .city-error-msg { 
+      color: #ffaa00; font-size: 14px; text-align: center; 
+      background: rgba(255,170,0,0.15); padding: 12px; border-radius: 8px;
+      display: none; margin: 10px 0;
+    }
     
     .btn {
       padding: 16px 40px; font-size: 20px; font-weight: bold;
@@ -96,7 +100,7 @@
     <h1 id="complete-msg">恭喜您通過第一關</h1>
     <div class="city-container">
       <img id="city-img" class="city-image" src="" alt="城市風景">
-      <div id="city-error" class="city-error-msg">圖片載入失敗<br>請確認 TAIPEI.PNG 等檔案存在</div>
+      <div id="city-error" class="city-error-msg">⚠️ 圖片載入失敗<br>請確認檔案名稱正確（區分大小寫）</div>
     </div>
     <button id="next-level-btn" class="btn">繼續下一關 →</button>
   </div>
@@ -132,11 +136,10 @@
     const quitBtn = document.getElementById('quit-btn');
     const bgmEl = document.getElementById('bgm');
 
-    // 圖片快取
-    let ufoImg = null;
-    let jetImg = null;
-    let assetsLoaded = 0;
-
+    // 圖片快取（去背後）
+    let ufoCanvas = null;
+    let jetCanvas = null;
+    
     // 遊戲狀態
     let currentLevel = 1;
     let score = 0;
@@ -163,6 +166,7 @@
     let ufoTimer = 0;
     let autoFireTimer = 0;
     let audioCtx;
+    let bgmStarted = false;
 
     // 關卡設定（難度遞增）
     const levelConfig = {
@@ -171,26 +175,63 @@
       3: { targets: 25, weapon: 'laser', ufoSpeed: 1.6, bulletSpeed: 1.8, spawnRate: 50 }
     };
 
+    // 修正：使用小寫 .png（與 GitHub 檔案一致）
     const cityImages = {
-      1: 'TAIPEI.PNG',
-      2: 'TAICHUNG.PNG',
-      3: 'PARIS.PNG'
+      1: 'TAIPEI.png',
+      2: 'TAICHUNG.png',
+      3: 'PARIS.png'
     };
+
+    // 自動去背函數（移除白色背景）
+    function removeWhiteBackground(src, callback) {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const tempCanvas = document.createElement('canvas');
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCanvas.width = img.width;
+        tempCanvas.height = img.height;
+        tempCtx.drawImage(img, 0, 0);
+        
+        const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+        const data = imageData.data;
+        
+        // 將白色/接近白色的像素變透明
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i];
+          const g = data[i + 1];
+          const b = data[i + 2];
+          // 如果 RGB 都大於 200（白色或接近白色）
+          if (r > 200 && g > 200 && b > 200) {
+            data[i + 3] = 0; // 設為完全透明
+          }
+        }
+        
+        tempCtx.putImageData(imageData, 0, 0);
+        callback(tempCanvas);
+      };
+      img.onerror = () => {
+        console.warn(`無法載入圖片: ${src}`);
+        callback(null);
+      };
+      img.src = src;
+    }
 
     // 初始化
     function initGame() {
       resize();
       updateHPUI();
-      loadImages();
-      loop();
-    }
-
-    function loadImages() {
-      const ufo = new Image(); ufo.src = 'UFO.png';
-      ufo.onload = () => { ufoImg = ufo; assetsLoaded++; };
       
-      const jet = new Image(); jet.src = 'JET.png';
-      jet.onload = () => { jetImg = jet; assetsLoaded++; };
+      // 載入並處理圖片（去背）
+      removeWhiteBackground('UFO.png', (result) => {
+        ufoCanvas = result;
+      });
+      
+      removeWhiteBackground('JET.png', (result) => {
+        jetCanvas = result;
+      });
+      
+      loop();
     }
 
     function resize() {
@@ -206,17 +247,30 @@
 
     // 音效與語音管理
     function ensureAudioContext() {
-      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      if (audioCtx.state === 'suspended') audioCtx.resume();
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
     }
 
     function playBGM() {
-      bgmEl.volume = 0.3;
+      if (bgmStarted) return;
+      ensureAudioContext();
+      bgmEl.volume = 0.35;
       bgmEl.currentTime = 0;
-      bgmEl.play().catch(() => {});
+      bgmEl.play().then(() => {
+        bgmStarted = true;
+      }).catch(e => {
+        console.log('BGM 需要使用者互動才能播放:', e);
+      });
     }
 
-    function pauseBGM() { bgmEl.pause(); }
+    function pauseBGM() { 
+      bgmEl.pause(); 
+      bgmStarted = false;
+    }
 
     function playGameOverSound() {
       ensureAudioContext();
@@ -235,11 +289,12 @@
     // 安全語音播報（避免衝突）
     function speakTTS(text) {
       if (!('speechSynthesis' in window)) return;
-      window.speechSynthesis.cancel(); // 強制停止前一句
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = 'zh-TW'; u.rate = 0.95; u.pitch = 1.05;
-      u.onend = () => window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(u);
+      window.speechSynthesis.cancel();
+      setTimeout(() => {
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'zh-TW'; u.rate = 0.95; u.pitch = 1.05;
+        window.speechSynthesis.speak(u);
+      }, 100);
     }
 
     // 生成飛碟
@@ -257,7 +312,6 @@
     // 玩家射擊
     function playerShoot() {
       if (gameOver || gameEnded || isPaused) return;
-      ensureAudioContext();
       const cfg = levelConfig[currentLevel];
       if (cfg.weapon === 'bomb') {
         missiles.push({ x: playerX, y: playerY - 20, speed: 11, r: 6, type: 'bomb' });
@@ -290,9 +344,22 @@
       isPaused = true;
       pauseBGM();
       completeMsg.textContent = `🎉 恭喜您通過第${currentLevel}關`;
-      cityImg.src = cityImages[currentLevel];
-      cityImg.onerror = () => { cityImg.classList.add('error'); cityError.style.display = 'block'; };
-      cityImg.onload = () => { cityImg.classList.remove('error'); cityError.style.display = 'none'; };
+      
+      // 載入城市圖片（使用小寫 .png）
+      const imgUrl = cityImages[currentLevel];
+      cityImg.src = imgUrl;
+      cityImg.classList.remove('hidden');
+      cityError.style.display = 'none';
+      
+      cityImg.onload = () => {
+        console.log(`成功載入: ${imgUrl}`);
+      };
+      
+      cityImg.onerror = () => {
+        console.error(`載入失敗: ${imgUrl}`);
+        cityImg.classList.add('hidden');
+        cityError.style.display = 'block';
+      };
       
       levelCompleteEl.style.display = 'flex';
       speakTTS(`恭喜您通過第${currentLevel}關`);
@@ -327,7 +394,6 @@
       isPaused = true;
       pauseBGM();
       
-      // 爆炸特效
       for(let i=0; i<80; i++) {
         const angle = Math.random() * Math.PI * 2;
         const speed = Math.random() * 6 + 2;
@@ -348,7 +414,7 @@
 
       gameoverEl.style.display = 'flex';
       playGameOverSound();
-      setTimeout(() => speakTTS('遊戲結束，血量歸零'), 600); // 錯開音效與語音
+      setTimeout(() => speakTTS('遊戲結束，血量歸零'), 800);
     }
 
     function clearGameObjects() {
@@ -365,6 +431,7 @@
       clearGameObjects();
       gameoverEl.style.display = 'none'; finalEndEl.style.display = 'none';
       instEl.style.opacity = 1;
+      bgmStarted = false;
       playBGM();
       loop();
     }
@@ -381,7 +448,6 @@
     // 核心更新
     function update() {
       if (gameOver || gameEnded) {
-        // 僅更新殘留特效
         updateParticles();
         return;
       }
@@ -390,22 +456,18 @@
       if (score > 0) instEl.style.opacity = 0;
       const cfg = levelConfig[currentLevel];
       
-      // 生成飛碟
       ufoTimer++;
       if (ufoTimer > cfg.spawnRate) { spawnUfo(); ufoTimer = 0; }
 
-      // 自動射擊
       autoFireTimer++;
       const fireInterval = cfg.weapon === 'laser' ? 12 : 35;
       if (autoFireTimer >= fireInterval) { playerShoot(); autoFireTimer = 0; }
 
-      // 更新飛彈
       for (let i = missiles.length - 1; i >= 0; i--) {
         let m = missiles[i]; m.y -= m.speed;
         if (m.y < -10) missiles.splice(i, 1);
       }
 
-      // 更新飛碟與敵方射擊
       for (let i = ufoes.length - 1; i >= 0; i--) {
         let u = ufoes[i]; 
         u.x += u.vx; u.y += u.vy;
@@ -423,7 +485,6 @@
         }
       }
 
-      // 敵方飛彈碰撞
       for (let i = enemyMissiles.length - 1; i >= 0; i--) {
         let m = enemyMissiles[i]; m.y += m.speed;
         if (m.y > canvas.height + 10) { enemyMissiles.splice(i, 1); continue; }
@@ -437,7 +498,6 @@
         }
       }
 
-      // 我方飛彈碰撞
       for (let i = missiles.length - 1; i >= 0; i--) {
         let m = missiles[i];
         for (let j = ufoes.length - 1; j >= 0; j--) {
@@ -452,7 +512,6 @@
         }
       }
 
-      // 平台碰撞飛碟
       for (let u of ufoes) {
         if (Math.hypot(playerX - u.x, playerY - u.y) < playerW/2 + u.r * 0.6) {
           triggerGameOver(); break;
@@ -481,19 +540,19 @@
         ctx.beginPath(); ctx.arc(s.x, s.y, s.s, 0, Math.PI*2); ctx.fill();
       }
 
-      // 飛碟
+      // 繪製飛碟（使用去背後的 canvas）
       for (let u of ufoes) {
-        if (ufoImg && ufoImg.complete) {
-          ctx.drawImage(ufoImg, u.x - u.r*1.4, u.y - u.r*0.8, u.r*2.8, u.r*1.6);
+        if (ufoCanvas) {
+          ctx.drawImage(ufoCanvas, u.x - u.r*1.4, u.y - u.r*0.8, u.r*2.8, u.r*1.6);
         } else {
           ctx.fillStyle = '#00e5ff'; ctx.beginPath(); ctx.ellipse(u.x, u.y+5, u.r*1.4, u.r*0.5, 0, 0, Math.PI*2); ctx.fill();
         }
       }
 
-      // 戰機
+      // 繪製戰機（使用去背後的 canvas）
       if (!gameOver && !gameEnded) {
-        if (jetImg && jetImg.complete) {
-          ctx.drawImage(jetImg, playerX - playerW*0.55, playerY - playerH*0.85, playerW*1.1, playerH*1.5);
+        if (jetCanvas) {
+          ctx.drawImage(jetCanvas, playerX - playerW*0.55, playerY - playerH*0.85, playerW*1.1, playerH*1.5);
         } else {
           ctx.fillStyle = '#444'; ctx.beginPath();
           ctx.moveTo(playerX, playerY - playerH/2);
@@ -545,8 +604,7 @@
       isTouching = true;
       touchStartX = e.touches[0].clientX;
       touchStartY = e.touches[0].clientY;
-      ensureAudioContext();
-      if (!bgmEl.paused) bgmEl.play().catch(()=>{});
+      playBGM(); // 確保 BGM 在第一次觸碰時播放
     }, {passive: false});
 
     canvas.addEventListener('touchmove', e => {
@@ -556,14 +614,9 @@
       const touchX = e.touches[0].clientX;
       const touchY = e.touches[0].clientY;
       
-      // 計算位移增量
-      const dx = touchX - touchStartX;
-      const dy = touchY - touchStartY;
+      playerX += (touchX - touchStartX) * 1.2;
+      playerY += (touchY - touchStartY) * 1.2;
       
-      playerX += dx * 1.2;
-      playerY += dy * 1.2;
-      
-      // 邊界限制
       playerX = Math.max(playerW/2, Math.min(canvas.width - playerW/2, playerX));
       playerY = Math.max(canvas.height * 0.35, Math.min(canvas.height - 30, playerY));
       
@@ -573,9 +626,14 @@
 
     canvas.addEventListener('touchend', () => { isTouching = false; });
 
-    // 滑鼠支援（測試用）
+    // 滑鼠支援
     let mouseDown = false;
-    canvas.addEventListener('mousedown', e => { mouseDown = true; touchStartX = e.clientX; touchStartY = e.clientY; });
+    canvas.addEventListener('mousedown', e => { 
+      mouseDown = true; 
+      touchStartX = e.clientX; 
+      touchStartY = e.clientY; 
+      playBGM();
+    });
     canvas.addEventListener('mousemove', e => {
       if (!mouseDown || isPaused) return;
       playerX += (e.clientX - touchStartX) * 1.2;
