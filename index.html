@@ -123,12 +123,10 @@
     const quitBtn = document.getElementById('quit-btn');
     const bgmEl = document.getElementById('bgm');
 
-    // 圖片處理
+    // 圖片變數
     let cleanedUfo = null;
     let cleanedJet = null;
-    let assetsReady = 0;
-    const totalAssets = 2;
-
+    
     // 遊戲狀態
     let currentLevel = 1;
     let score = 0;
@@ -148,7 +146,6 @@
     let stars = [];
     let ufoTimer = 0;
     let autoFireTimer = 0;
-    let laserActive = false;
     let audioCtx;
 
     // 關卡設定
@@ -164,12 +161,34 @@
       3: 'PARIS.PNG'
     };
 
-    // 自動去背功能
-    function removeWhiteBackground(src, callback) {
-      const img = new Image();
-      img.src = src;
-      img.crossOrigin = "Anonymous";
-      img.onload = () => {
+    // 初始化遊戲 - 立即啟動，不等圖片
+    function initGame() {
+      resize();
+      updateHPUI();
+      loadImages(); // 非同步載入圖片
+      loop(); // 立即開始遊戲迴圈
+    }
+
+    // 載入圖片（非同步，不阻擋遊戲）
+    function loadImages() {
+      // 載入 UFO
+      const ufoImg = new Image();
+      ufoImg.src = 'UFO.png';
+      ufoImg.onload = () => {
+        cleanedUfo = removeWhiteBackgroundSync(ufoImg);
+      };
+      
+      // 載入 JET
+      const jetImg = new Image();
+      jetImg.src = 'JET.png';
+      jetImg.onload = () => {
+        cleanedJet = removeWhiteBackgroundSync(jetImg);
+      };
+    }
+
+    // 同步去背函數
+    function removeWhiteBackgroundSync(img) {
+      try {
         const offCanvas = document.createElement('canvas');
         offCanvas.width = img.width;
         offCanvas.height = img.height;
@@ -187,26 +206,11 @@
         }
         
         offCtx.putImageData(imgData, 0, 0);
-        callback(offCanvas);
-      };
-      img.onerror = () => {
-        console.warn(`無法載入圖片: ${src}`);
-        callback(null);
-      };
-    }
-
-    removeWhiteBackground('UFO.png', (res) => { cleanedUfo = res; checkReady(); });
-    removeWhiteBackground('JET.png', (res) => { cleanedJet = res; checkReady(); });
-
-    function checkReady() {
-      assetsReady++;
-      if (assetsReady === totalAssets) initGame();
-    }
-
-    function initGame() {
-      resize();
-      updateHPUI();
-      loop();
+        return offCanvas;
+      } catch(e) {
+        console.log('去背失敗，使用原始圖片');
+        return img;
+      }
     }
 
     function resize() {
@@ -278,10 +282,8 @@
       const config = levelConfig[currentLevel];
       
       if (config.weapon === 'bomb') {
-        // 第一關：單顆紅色炸彈
         missiles.push({ x: playerX, y: playerY - 25, speed: 12 * config.speed, r: 6, type: 'bomb' });
       } else {
-        // 第二、三關：綠色雷射光束（連續發射）
         missiles.push({ x: playerX, y: playerY - 25, speed: 15 * config.speed, r: 4, type: 'laser' });
       }
     }
@@ -309,7 +311,6 @@
 
     function levelComplete() {
       pauseBGM();
-      const cityName = currentLevel === 1 ? '台北' : currentLevel === 2 ? '台中' : '巴黎';
       completeMsg.textContent = `恭喜您通過第${currentLevel}關`;
       cityImg.src = cityImages[currentLevel];
       levelCompleteEl.style.display = 'flex';
@@ -330,7 +331,7 @@
       scoreEl.textContent = score;
       targetEl.textContent = levelConfig[currentLevel].targets;
       levelEl.textContent = currentLevel;
-      playerHP = MAX_HP; // 血量回復
+      playerHP = MAX_HP;
       updateHPUI();
       
       missiles = [];
@@ -431,7 +432,7 @@
       if (score > 0) instEl.style.opacity = 0;
       
       const config = levelConfig[currentLevel];
-      const fireInterval = config.weapon === 'laser' ? 15 : AUTO_FIRE_INTERVAL;
+      const fireInterval = config.weapon === 'laser' ? 15 : 35;
       
       ufoTimer++;
       if (ufoTimer > 80 / config.ufoSpeed) { spawnUfo(); ufoTimer = 0; }
@@ -439,13 +440,11 @@
       autoFireTimer++;
       if (autoFireTimer >= fireInterval) { shoot(); autoFireTimer = 0; }
 
-      // 更新飛彈
       for (let i = missiles.length - 1; i >= 0; i--) {
         let m = missiles[i]; m.y -= m.speed;
         if (m.y < -10) missiles.splice(i, 1);
       }
 
-      // 更新飛碟
       for (let i = ufoes.length - 1; i >= 0; i--) {
         let u = ufoes[i]; 
         u.x += u.vx; u.y += u.vy;
@@ -459,7 +458,6 @@
         }
       }
 
-      // 敵方飛彈碰撞
       for (let i = enemyMissiles.length - 1; i >= 0; i--) {
         let m = enemyMissiles[i];
         m.y += m.speed;
@@ -476,7 +474,6 @@
         }
       }
 
-      // 我方飛彈碰撞
       for (let i = missiles.length - 1; i >= 0; i--) {
         let m = missiles[i];
         for (let j = ufoes.length - 1; j >= 0; j--) {
@@ -494,7 +491,6 @@
         }
       }
 
-      // 平台碰撞
       for (let u of ufoes) {
         let dx = playerX - u.x;
         let dy = (playerY - 5) - u.y;
@@ -504,7 +500,6 @@
         }
       }
 
-      // 更新特效
       for (let i = particles.length - 1; i >= 0; i--) {
         let p = particles[i]; p.x += p.vx; p.y += p.vy; p.vy += 0.08; p.life -= p.decay;
         if (p.life <= 0) particles.splice(i, 1);
@@ -519,14 +514,17 @@
       ctx.fillStyle = '#0a0a2a'; ctx.fillRect(0, 0, canvas.width, canvas.height);
       for (let s of stars) { ctx.fillStyle = `rgba(255,255,255,${s.b})`; ctx.beginPath(); ctx.arc(s.x, s.y, s.s, 0, Math.PI*2); ctx.fill(); }
 
+      // 繪製飛碟
       for (let u of ufoes) {
         if (cleanedUfo) {
           ctx.drawImage(cleanedUfo, u.x - u.r * 1.5, u.y - u.r, u.r * 3, u.r * 2);
         } else {
           ctx.fillStyle = '#00e5ff'; ctx.beginPath(); ctx.ellipse(u.x, u.y + 6, u.r * 1.5, u.r * 0.6, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#00b3cc'; ctx.beginPath(); ctx.ellipse(u.x, u.y - 4, u.r * 0.7, u.r * 0.5, 0, 0, Math.PI * 2); ctx.fill();
         }
       }
 
+      // 繪製戰機
       if (!gameOver && !gameEnded) {
         if (cleanedJet) {
           ctx.drawImage(cleanedJet, playerX - playerW * 0.6, playerY - playerH * 0.9, playerW * 1.2, playerH * 1.6);
@@ -545,7 +543,6 @@
           ctx.fillStyle = '#ff0000'; ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI*2); ctx.fill();
           ctx.fillStyle = 'rgba(255, 80, 0, 0.6)'; ctx.fillRect(m.x - 2, m.y, 4, 12);
         } else {
-          // 綠色雷射
           ctx.fillStyle = '#00ff00'; ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI*2); ctx.fill();
           ctx.fillStyle = 'rgba(0, 255, 0, 0.6)'; ctx.fillRect(m.x - 2, m.y, 4, 15);
         }
@@ -618,6 +615,9 @@
           .catch(err => console.log('SW registration failed:', err));
       });
     }
+
+    // 立即啟動遊戲！
+    window.onload = initGame;
   </script>
 </body>
 </html>
