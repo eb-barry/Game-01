@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0a0a2a">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>紅彈射飛碟</title>
+  <title>紅彈射飛碟 - 三關挑戰</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
   <audio id="bgm" src="BGM.mp3" loop preload="auto"></audio>
@@ -23,19 +23,49 @@
     #hp-bar {
       height: 100%; width: 100%; background: #33ff33; transition: width 0.3s ease, background 0.3s ease;
     }
+    #level-indicator {
+      position: absolute; top: 40px; left: 12px; color: #ffff00; font-size: 16px;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.8); z-index: 5; pointer-events: none;
+    }
     #instruction {
       position: absolute; bottom: 20px; width: 100%; text-align: center;
       color: rgba(255,255,255,0.6); font-size: 14px; pointer-events: none; transition: opacity 2s; z-index: 5;
     }
     
-    #gameover {
+    .overlay {
       position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(10, 10, 42, 0.85);
+      background: rgba(10, 10, 42, 0.9);
       display: none; flex-direction: column; justify-content: center; align-items: center;
       z-index: 10;
     }
+    .overlay h1 {
+      color: #33ff33; font-size: 28px; margin-bottom: 20px; text-align: center;
+      text-shadow: 0 0 15px #33ff33;
+    }
+    .city-image {
+      max-width: 80%; max-height: 40vh; object-fit: contain;
+      border-radius: 12px; box-shadow: 0 0 30px rgba(51,255,51,0.5);
+      margin-bottom: 20px;
+    }
+    .btn {
+      padding: 16px 48px; font-size: 20px; font-weight: bold;
+      background: linear-gradient(135deg, #33ff33, #00cc00);
+      color: #000; border: 2px solid #66ff66; border-radius: 14px;
+      cursor: pointer; box-shadow: 0 0 20px rgba(51,255,51,0.6);
+      transition: all 0.2s; margin: 10px;
+    }
+    .btn:active { transform: scale(0.95); }
+    .btn-red {
+      background: linear-gradient(135deg, #ff4444, #cc0000);
+      color: #fff; border: 2px solid #ff8888;
+      box-shadow: 0 0 20px rgba(255,0,0,0.6);
+    }
+    
+    #gameover {
+      background: rgba(10, 10, 42, 0.95);
+    }
     #gameover h1 {
-      color: #ff3333; font-size: 36px; margin-bottom: 40px; letter-spacing: 4px;
+      color: #ff3333; font-size: 36px;
       text-shadow: 0 0 15px #ff0000, 0 0 30px #ff0000;
       animation: glitch 1.5s infinite alternate;
     }
@@ -47,50 +77,66 @@
       80% { transform: translate(1px, 1px); }
       100% { transform: translate(0); }
     }
-    #restart-btn {
-      padding: 16px 48px; font-size: 22px; font-weight: bold;
-      background: linear-gradient(135deg, #ff4444, #cc0000);
-      color: #fff; border: 2px solid #ff8888; border-radius: 14px;
-      cursor: pointer; box-shadow: 0 0 20px rgba(255,0,0,0.6);
-      transition: all 0.2s;
-    }
-    #restart-btn:active { transform: scale(0.95); box-shadow: 0 0 8px rgba(255,0,0,0.6); }
   </style>
 </head>
 <body>
   <canvas id="game"></canvas>
-  <div id="ui">擊中: <span id="score">0</span> / 10</div>
+  <div id="ui">擊中: <span id="score">0</span> / <span id="target">10</span></div>
+  <div id="level-indicator">第 <span id="level">1</span> 關</div>
   <div id="hp-container"><div id="hp-bar"></div></div>
   <div id="instruction">← 左右滑動移動發射平台（自動射擊中） →</div>
   
-  <div id="gameover">
+  <!-- 過關畫面 -->
+  <div id="level-complete" class="overlay">
+    <h1 id="complete-msg">恭喜您通過第一關</h1>
+    <img id="city-img" class="city-image" src="" alt="城市風景">
+    <button id="next-level-btn" class="btn">繼續下一關 →</button>
+  </div>
+  
+  <!-- 遊戲結束畫面 -->
+  <div id="gameover" class="overlay">
     <h1>GAME OVER</h1>
-    <button id="restart-btn">🔄 重新開始</button>
+    <button id="restart-btn" class="btn btn-red">🔄 重新開始</button>
+  </div>
+  
+  <!-- 最終結束訊息 -->
+  <div id="final-end" class="overlay">
+    <h1 style="color: #ffff00; font-size: 24px;">遊戲結束，不要玩得太沉迷</h1>
+    <button id="quit-btn" class="btn">結束遊戲</button>
   </div>
 
   <script>
     const canvas = document.getElementById('game');
     const ctx = canvas.getContext('2d');
     const scoreEl = document.getElementById('score');
+    const targetEl = document.getElementById('target');
+    const levelEl = document.getElementById('level');
     const hpBar = document.getElementById('hp-bar');
     const instEl = document.getElementById('instruction');
+    const levelCompleteEl = document.getElementById('level-complete');
     const gameoverEl = document.getElementById('gameover');
+    const finalEndEl = document.getElementById('final-end');
+    const cityImg = document.getElementById('city-img');
+    const completeMsg = document.getElementById('complete-msg');
+    const nextLevelBtn = document.getElementById('next-level-btn');
     const restartBtn = document.getElementById('restart-btn');
+    const quitBtn = document.getElementById('quit-btn');
     const bgmEl = document.getElementById('bgm');
 
-    // 圖片處理變數
+    // 圖片處理
     let cleanedUfo = null;
     let cleanedJet = null;
     let assetsReady = 0;
     const totalAssets = 2;
 
-    // 遊戲變數
+    // 遊戲狀態
+    let currentLevel = 1;
     let score = 0;
     let playerHP = 10;
     const MAX_HP = 10;
     let gameOver = false;
-    let isPaused = false;
-    let playerX = 0; // 初始位置在 resize 後設定
+    let gameEnded = false;
+    let playerX = 0;
     let playerY = 0;
     const playerW = 60, playerH = 45;
     
@@ -102,14 +148,27 @@
     let stars = [];
     let ufoTimer = 0;
     let autoFireTimer = 0;
-    const AUTO_FIRE_INTERVAL = 35;
+    let laserActive = false;
     let audioCtx;
 
-    // --- 核心功能：自動去背腳本 ---
+    // 關卡設定
+    const levelConfig = {
+      1: { targets: 10, weapon: 'bomb', speed: 1, ufoSpeed: 1 },
+      2: { targets: 15, weapon: 'laser', speed: 1, ufoSpeed: 1.2 },
+      3: { targets: 25, weapon: 'laser', speed: 1.5, ufoSpeed: 1.8 }
+    };
+
+    const cityImages = {
+      1: 'TAIPEI.PNG',
+      2: 'TAICHUNG.PNG',
+      3: 'PARIS.PNG'
+    };
+
+    // 自動去背功能
     function removeWhiteBackground(src, callback) {
       const img = new Image();
       img.src = src;
-      img.crossOrigin = "Anonymous"; // 避免跨域問題
+      img.crossOrigin = "Anonymous";
       img.onload = () => {
         const offCanvas = document.createElement('canvas');
         offCanvas.width = img.width;
@@ -120,27 +179,22 @@
         const imgData = offCtx.getImageData(0, 0, offCanvas.width, offCanvas.height);
         const data = imgData.data;
         
-        // 遍歷像素，將白色 (或接近白色) 變為透明
         for (let i = 0; i < data.length; i += 4) {
-          const r = data[i];
-          const g = data[i+1];
-          const b = data[i+2];
-          // 如果 RGB 都大於 200 (淺灰色到白色)，視為背景並設為透明
+          const r = data[i], g = data[i+1], b = data[i+2];
           if (r > 200 && g > 200 && b > 200) {
-            data[i+3] = 0; 
+            data[i+3] = 0;
           }
         }
         
         offCtx.putImageData(imgData, 0, 0);
-        callback(offCanvas); // 回傳處理過的 Canvas 作為圖片使用
+        callback(offCanvas);
       };
       img.onerror = () => {
-        console.warn(`無法載入圖片: ${src}，將使用預設圖形。`);
+        console.warn(`無法載入圖片: ${src}`);
         callback(null);
       };
     }
 
-    // 載入資源
     removeWhiteBackground('UFO.png', (res) => { cleanedUfo = res; checkReady(); });
     removeWhiteBackground('JET.png', (res) => { cleanedJet = res; checkReady(); });
 
@@ -166,16 +220,17 @@
     }
     window.addEventListener('resize', resize);
 
-    // 音效與音樂
     function ensureAudioContext() {
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       if (audioCtx.state === 'suspended') audioCtx.resume();
     }
+
     function playBGM() {
       bgmEl.volume = 0.35;
       bgmEl.currentTime = 0;
       bgmEl.play().catch(e => console.log('BGM 需使用者互動:', e));
     }
+
     function pauseBGM() { bgmEl.pause(); }
 
     function playGameOverSound() {
@@ -207,17 +262,28 @@
     }
 
     function spawnUfo() {
+      const config = levelConfig[currentLevel];
       ufoes.push({
         x: Math.random() * (canvas.width - 100) + 50, y: -50,
-        vx: (Math.random() - 0.5) * 2.5, vy: 1.0 + Math.random() * 0.8, r: 28,
+        vx: (Math.random() - 0.5) * 2.5 * config.ufoSpeed,
+        vy: (1.0 + Math.random() * 0.8) * config.ufoSpeed,
+        r: 28,
         shootTimer: Math.floor(Math.random() * 120 + 60)
       });
     }
 
     function shoot() {
-      if (gameOver) return;
+      if (gameOver || gameEnded) return;
       ensureAudioContext();
-      missiles.push({ x: playerX, y: playerY - 25, speed: 12, r: 6 });
+      const config = levelConfig[currentLevel];
+      
+      if (config.weapon === 'bomb') {
+        // 第一關：單顆紅色炸彈
+        missiles.push({ x: playerX, y: playerY - 25, speed: 12 * config.speed, r: 6, type: 'bomb' });
+      } else {
+        // 第二、三關：綠色雷射光束（連續發射）
+        missiles.push({ x: playerX, y: playerY - 25, speed: 15 * config.speed, r: 4, type: 'laser' });
+      }
     }
 
     function spawnFirework(x, y) {
@@ -241,10 +307,53 @@
       else hpBar.style.background = '#33ff33';
     }
 
+    function levelComplete() {
+      pauseBGM();
+      const cityName = currentLevel === 1 ? '台北' : currentLevel === 2 ? '台中' : '巴黎';
+      completeMsg.textContent = `恭喜您通過第${currentLevel}關`;
+      cityImg.src = cityImages[currentLevel];
+      levelCompleteEl.style.display = 'flex';
+      speakTTS(`恭喜您通過第${currentLevel}關`);
+      
+      if (currentLevel === 3) {
+        nextLevelBtn.textContent = '結束遊戲';
+        nextLevelBtn.onclick = showFinalEnd;
+      } else {
+        nextLevelBtn.textContent = `繼續第${currentLevel + 1}關 →`;
+        nextLevelBtn.onclick = nextLevel;
+      }
+    }
+
+    function nextLevel() {
+      currentLevel++;
+      score = 0;
+      scoreEl.textContent = score;
+      targetEl.textContent = levelConfig[currentLevel].targets;
+      levelEl.textContent = currentLevel;
+      playerHP = MAX_HP; // 血量回復
+      updateHPUI();
+      
+      missiles = [];
+      ufoes = [];
+      enemyMissiles = [];
+      particles = [];
+      ripples = [];
+      ufoTimer = 0;
+      autoFireTimer = 0;
+      
+      levelCompleteEl.style.display = 'none';
+      playBGM();
+    }
+
+    function showFinalEnd() {
+      levelCompleteEl.style.display = 'none';
+      finalEndEl.style.display = 'flex';
+      speakTTS('遊戲結束，不要玩得太沉迷');
+    }
+
     function triggerGameOver() {
       if (gameOver) return;
       gameOver = true;
-      isPaused = true;
       pauseBGM();
       
       for(let i=0; i<90; i++) {
@@ -267,34 +376,76 @@
 
       gameoverEl.style.display = 'flex';
       playGameOverSound();
-      speakTTS('遊戲結束，血條歸零。請點擊重新開始');
+      speakTTS('遊戲結束，血量歸零');
+    }
+
+    function resetToLevel1() {
+      currentLevel = 1;
+      score = 0;
+      scoreEl.textContent = score;
+      targetEl.textContent = levelConfig[1].targets;
+      levelEl.textContent = currentLevel;
+      playerHP = MAX_HP;
+      updateHPUI();
+      
+      missiles = [];
+      ufoes = [];
+      enemyMissiles = [];
+      particles = [];
+      ripples = [];
+      ufoTimer = 0;
+      autoFireTimer = 0;
+      
+      gameoverEl.style.display = 'none';
+      gameOver = false;
+      playBGM();
+    }
+
+    function quitGame() {
+      gameEnded = true;
+      finalEndEl.style.display = 'none';
+      ctx.fillStyle = '#0a0a2a';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#fff';
+      ctx.font = '24px Microsoft JhengHei';
+      ctx.textAlign = 'center';
+      ctx.fillText('感謝遊玩', canvas.width/2, canvas.height/2);
+      speakTTS('感謝遊玩');
     }
 
     function update() {
-      if (gameOver) {
-        for (let i = particles.length - 1; i >= 0; i--) {
-          let p = particles[i]; p.x += p.vx; p.y += p.vy; p.vy += 0.08; p.life -= p.decay;
-          if (p.life <= 0) particles.splice(i, 1);
-        }
-        for (let i = ripples.length - 1; i >= 0; i--) {
-          let rp = ripples[i]; rp.r += rp.speed; rp.alpha -= 0.008;
-          if (rp.alpha <= 0) ripples.splice(i, 1);
+      if (gameOver || gameEnded) {
+        if (!gameEnded) {
+          for (let i = particles.length - 1; i >= 0; i--) {
+            let p = particles[i]; p.x += p.vx; p.y += p.vy; p.vy += 0.08; p.life -= p.decay;
+            if (p.life <= 0) particles.splice(i, 1);
+          }
+          for (let i = ripples.length - 1; i >= 0; i--) {
+            let rp = ripples[i]; rp.r += rp.speed; rp.alpha -= 0.008;
+            if (rp.alpha <= 0) ripples.splice(i, 1);
+          }
         }
         return;
       }
 
       if (score > 0) instEl.style.opacity = 0;
+      
+      const config = levelConfig[currentLevel];
+      const fireInterval = config.weapon === 'laser' ? 15 : AUTO_FIRE_INTERVAL;
+      
       ufoTimer++;
-      if (ufoTimer > 80) { spawnUfo(); ufoTimer = 0; }
+      if (ufoTimer > 80 / config.ufoSpeed) { spawnUfo(); ufoTimer = 0; }
 
       autoFireTimer++;
-      if (autoFireTimer >= AUTO_FIRE_INTERVAL) { shoot(); autoFireTimer = 0; }
+      if (autoFireTimer >= fireInterval) { shoot(); autoFireTimer = 0; }
 
+      // 更新飛彈
       for (let i = missiles.length - 1; i >= 0; i--) {
         let m = missiles[i]; m.y -= m.speed;
         if (m.y < -10) missiles.splice(i, 1);
       }
 
+      // 更新飛碟
       for (let i = ufoes.length - 1; i >= 0; i--) {
         let u = ufoes[i]; 
         u.x += u.vx; u.y += u.vy;
@@ -303,11 +454,12 @@
 
         u.shootTimer--;
         if (u.shootTimer <= 0) {
-          enemyMissiles.push({ x: u.x, y: u.y + u.r, speed: 5.5, r: 6 });
+          enemyMissiles.push({ x: u.x, y: u.y + u.r, speed: 5.5 * config.ufoSpeed, r: 6 });
           u.shootTimer = Math.floor(Math.random() * 100 + 80);
         }
       }
 
+      // 敵方飛彈碰撞
       for (let i = enemyMissiles.length - 1; i >= 0; i--) {
         let m = enemyMissiles[i];
         m.y += m.speed;
@@ -324,6 +476,7 @@
         }
       }
 
+      // 我方飛彈碰撞
       for (let i = missiles.length - 1; i >= 0; i--) {
         let m = missiles[i];
         for (let j = ufoes.length - 1; j >= 0; j--) {
@@ -333,15 +486,15 @@
             spawnFirework(u.x, u.y);
             missiles.splice(i, 1); ufoes.splice(j, 1);
             score++; scoreEl.textContent = score;
-            if (score >= 10) {
-              speakTTS('恭喜您闖關成功');
-              setTimeout(() => resetGame(), 2500);
+            if (score >= config.targets) {
+              levelComplete();
             }
             break;
           }
         }
       }
 
+      // 平台碰撞
       for (let u of ufoes) {
         let dx = playerX - u.x;
         let dy = (playerY - 5) - u.y;
@@ -351,6 +504,7 @@
         }
       }
 
+      // 更新特效
       for (let i = particles.length - 1; i >= 0; i--) {
         let p = particles[i]; p.x += p.vx; p.y += p.vy; p.vy += 0.08; p.life -= p.decay;
         if (p.life <= 0) particles.splice(i, 1);
@@ -365,19 +519,15 @@
       ctx.fillStyle = '#0a0a2a'; ctx.fillRect(0, 0, canvas.width, canvas.height);
       for (let s of stars) { ctx.fillStyle = `rgba(255,255,255,${s.b})`; ctx.beginPath(); ctx.arc(s.x, s.y, s.s, 0, Math.PI*2); ctx.fill(); }
 
-      // 繪製飛碟 (使用去背後的圖片，若無則用預設圖形)
       for (let u of ufoes) {
         if (cleanedUfo) {
-          // 繪製去背圖片
           ctx.drawImage(cleanedUfo, u.x - u.r * 1.5, u.y - u.r, u.r * 3, u.r * 2);
         } else {
-          // 備用圖形
           ctx.fillStyle = '#00e5ff'; ctx.beginPath(); ctx.ellipse(u.x, u.y + 6, u.r * 1.5, u.r * 0.6, 0, 0, Math.PI * 2); ctx.fill();
         }
       }
 
-      // 繪製發射車
-      if (!gameOver) {
+      if (!gameOver && !gameEnded) {
         if (cleanedJet) {
           ctx.drawImage(cleanedJet, playerX - playerW * 0.6, playerY - playerH * 0.9, playerW * 1.2, playerH * 1.6);
         } else {
@@ -389,14 +539,21 @@
         }
       }
 
-      for (let m of missiles) { 
-        ctx.fillStyle = '#ff0000'; ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI*2); ctx.fill(); 
-        ctx.fillStyle = 'rgba(255, 80, 0, 0.6)'; ctx.fillRect(m.x - 2, m.y, 4, 12); ctx.fillStyle = '#ff0000'; 
+      // 繪製飛彈
+      for (let m of missiles) {
+        if (m.type === 'bomb') {
+          ctx.fillStyle = '#ff0000'; ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = 'rgba(255, 80, 0, 0.6)'; ctx.fillRect(m.x - 2, m.y, 4, 12);
+        } else {
+          // 綠色雷射
+          ctx.fillStyle = '#00ff00'; ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = 'rgba(0, 255, 0, 0.6)'; ctx.fillRect(m.x - 2, m.y, 4, 15);
+        }
       }
 
       for (let m of enemyMissiles) {
         ctx.fillStyle = '#00ffff'; ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = 'rgba(0, 255, 255, 0.4)'; ctx.fillRect(m.x - 2, m.y - 10, 4, 12); ctx.fillStyle = '#00ffff';
+        ctx.fillStyle = 'rgba(0, 255, 255, 0.4)'; ctx.fillRect(m.x - 2, m.y - 10, 4, 12);
       }
 
       ctx.lineWidth = 3;
@@ -419,7 +576,7 @@
     }
 
     function handleMove(clientX) {
-      if (!gameOver) {
+      if (!gameOver && !gameEnded) {
         playerX = clientX;
         if (playerX < 30) playerX = 30;
         if (playerX > canvas.width - 30) playerX = canvas.width - 30;
@@ -433,9 +590,12 @@
 
     function resetGame() {
       if (animId) cancelAnimationFrame(animId);
-      score = 0; scoreEl.textContent = 0;
+      currentLevel = 1;
+      score = 0; scoreEl.textContent = score;
+      targetEl.textContent = levelConfig[1].targets;
+      levelEl.textContent = currentLevel;
       playerHP = MAX_HP; updateHPUI();
-      gameOver = false; isPaused = false;
+      gameOver = false; gameEnded = false;
       missiles = []; ufoes = []; enemyMissiles = []; particles = []; ripples = [];
       ufoTimer = 0; autoFireTimer = 0;
       playerX = canvas.width / 2;
@@ -445,8 +605,11 @@
       playBGM();
       loop();
     }
+
     restartBtn.addEventListener('click', resetGame);
     restartBtn.addEventListener('touchstart', e => { e.preventDefault(); resetGame(); });
+    quitBtn.addEventListener('click', quitGame);
+    quitBtn.addEventListener('touchstart', e => { e.preventDefault(); quitGame(); });
 
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
@@ -455,9 +618,6 @@
           .catch(err => console.log('SW registration failed:', err));
       });
     }
-
-    // 確保資源載入後才開始
-    // (initGame 會由 checkReady 觸發)
   </script>
 </body>
 </html>
