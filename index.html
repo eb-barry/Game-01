@@ -78,40 +78,93 @@
     const restartBtn = document.getElementById('restart-btn');
     const bgmEl = document.getElementById('bgm');
 
-    // 圖片載入
-    const ufoImg = new Image(); ufoImg.src = 'UFO.png';
-    const jetImg = new Image(); jetImg.src = 'JET.png';
-    
-    let w, h;
-    function resize() {
-      w = canvas.width = window.innerWidth;
-      h = canvas.height = window.innerHeight;
-      stars = Array.from({length: 60}, () => ({
-        x: Math.random() * w, y: Math.random() * h, s: Math.random() * 2 + 0.5, b: Math.random() * 0.5 + 0.2
-      }));
-    }
-    let stars = [];
-    window.addEventListener('resize', resize);
-    resize();
+    // 圖片處理變數
+    let cleanedUfo = null;
+    let cleanedJet = null;
+    let assetsReady = 0;
+    const totalAssets = 2;
 
+    // 遊戲變數
     let score = 0;
     let playerHP = 10;
     const MAX_HP = 10;
     let gameOver = false;
     let isPaused = false;
-    let playerX = w / 2;
-    const playerY = h - 90;
-    const playerW = 60, playerH = 45; // 邏輯判定尺寸
+    let playerX = 0; // 初始位置在 resize 後設定
+    let playerY = 0;
+    const playerW = 60, playerH = 45;
     
     let missiles = [];
     let ufoes = [];
     let enemyMissiles = [];
     let particles = [];
     let ripples = [];
+    let stars = [];
     let ufoTimer = 0;
     let autoFireTimer = 0;
     const AUTO_FIRE_INTERVAL = 35;
     let audioCtx;
+
+    // --- 核心功能：自動去背腳本 ---
+    function removeWhiteBackground(src, callback) {
+      const img = new Image();
+      img.src = src;
+      img.crossOrigin = "Anonymous"; // 避免跨域問題
+      img.onload = () => {
+        const offCanvas = document.createElement('canvas');
+        offCanvas.width = img.width;
+        offCanvas.height = img.height;
+        const offCtx = offCanvas.getContext('2d');
+        offCtx.drawImage(img, 0, 0);
+        
+        const imgData = offCtx.getImageData(0, 0, offCanvas.width, offCanvas.height);
+        const data = imgData.data;
+        
+        // 遍歷像素，將白色 (或接近白色) 變為透明
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i];
+          const g = data[i+1];
+          const b = data[i+2];
+          // 如果 RGB 都大於 200 (淺灰色到白色)，視為背景並設為透明
+          if (r > 200 && g > 200 && b > 200) {
+            data[i+3] = 0; 
+          }
+        }
+        
+        offCtx.putImageData(imgData, 0, 0);
+        callback(offCanvas); // 回傳處理過的 Canvas 作為圖片使用
+      };
+      img.onerror = () => {
+        console.warn(`無法載入圖片: ${src}，將使用預設圖形。`);
+        callback(null);
+      };
+    }
+
+    // 載入資源
+    removeWhiteBackground('UFO.png', (res) => { cleanedUfo = res; checkReady(); });
+    removeWhiteBackground('JET.png', (res) => { cleanedJet = res; checkReady(); });
+
+    function checkReady() {
+      assetsReady++;
+      if (assetsReady === totalAssets) initGame();
+    }
+
+    function initGame() {
+      resize();
+      updateHPUI();
+      loop();
+    }
+
+    function resize() {
+      const w = canvas.width = window.innerWidth;
+      const h = canvas.height = window.innerHeight;
+      playerX = w / 2;
+      playerY = h - 90;
+      stars = Array.from({length: 80}, () => ({
+        x: Math.random() * w, y: Math.random() * h, s: Math.random() * 2 + 0.5, b: Math.random() * 0.5 + 0.2
+      }));
+    }
+    window.addEventListener('resize', resize);
 
     // 音效與音樂
     function ensureAudioContext() {
@@ -155,7 +208,7 @@
 
     function spawnUfo() {
       ufoes.push({
-        x: Math.random() * (w - 100) + 50, y: -50,
+        x: Math.random() * (canvas.width - 100) + 50, y: -50,
         vx: (Math.random() - 0.5) * 2.5, vy: 1.0 + Math.random() * 0.8, r: 28,
         shootTimer: Math.floor(Math.random() * 120 + 60)
       });
@@ -194,7 +247,6 @@
       isPaused = true;
       pauseBGM();
       
-      // 發射台爆炸特效
       for(let i=0; i<90; i++) {
         const angle = Math.random() * Math.PI * 2;
         const speed = Math.random() * 7 + 2;
@@ -206,10 +258,9 @@
           size: Math.random() * 5 + 2
         });
       }
-      // 電波紋
       for(let i=0; i<5; i++) {
         ripples.push({
-          x: playerX, y: playerY, r: 10, maxR: Math.max(w, h) * 0.8, 
+          x: playerX, y: playerY, r: 10, maxR: Math.max(canvas.width, canvas.height) * 0.8, 
           speed: 8 + i * 5, alpha: 0.9 - i * 0.15, color: '#00ffff'
         });
       }
@@ -220,9 +271,7 @@
     }
 
     function update() {
-      // 暫停狀態下僅允許粒子與電波紋繼續播放動畫，其餘遊戲邏輯完全凍結
       if (gameOver) {
-        // 僅更新視覺特效，其餘全部跳過
         for (let i = particles.length - 1; i >= 0; i--) {
           let p = particles[i]; p.x += p.vx; p.y += p.vy; p.vy += 0.08; p.life -= p.decay;
           if (p.life <= 0) particles.splice(i, 1);
@@ -231,7 +280,7 @@
           let rp = ripples[i]; rp.r += rp.speed; rp.alpha -= 0.008;
           if (rp.alpha <= 0) ripples.splice(i, 1);
         }
-        return; // 嚴禁繼續執行任何遊戲邏輯
+        return;
       }
 
       if (score > 0) instEl.style.opacity = 0;
@@ -241,18 +290,16 @@
       autoFireTimer++;
       if (autoFireTimer >= AUTO_FIRE_INTERVAL) { shoot(); autoFireTimer = 0; }
 
-      // 更新我方飛彈
       for (let i = missiles.length - 1; i >= 0; i--) {
         let m = missiles[i]; m.y -= m.speed;
         if (m.y < -10) missiles.splice(i, 1);
       }
 
-      // 更新敵方飛碟與射擊
       for (let i = ufoes.length - 1; i >= 0; i--) {
         let u = ufoes[i]; 
         u.x += u.vx; u.y += u.vy;
-        if (u.x < u.r || u.x > w - u.r) u.vx *= -1;
-        if (u.y > h + 60) ufoes.splice(i, 1);
+        if (u.x < u.r || u.x > canvas.width - u.r) u.vx *= -1;
+        if (u.y > canvas.height + 60) ufoes.splice(i, 1);
 
         u.shootTimer--;
         if (u.shootTimer <= 0) {
@@ -261,11 +308,10 @@
         }
       }
 
-      // 更新敵方飛彈 & 碰撞
       for (let i = enemyMissiles.length - 1; i >= 0; i--) {
         let m = enemyMissiles[i];
         m.y += m.speed;
-        if (m.y > h + 10) { enemyMissiles.splice(i, 1); continue; }
+        if (m.y > canvas.height + 10) { enemyMissiles.splice(i, 1); continue; }
 
         let dx = playerX - m.x;
         let dy = (playerY - 5) - m.y;
@@ -278,7 +324,6 @@
         }
       }
 
-      // 我方飛彈 vs 敵方飛碟
       for (let i = missiles.length - 1; i >= 0; i--) {
         let m = missiles[i];
         for (let j = ufoes.length - 1; j >= 0; j--) {
@@ -297,7 +342,6 @@
         }
       }
 
-      // 平台碰撞飛碟
       for (let u of ufoes) {
         let dx = playerX - u.x;
         let dy = (playerY - 5) - u.y;
@@ -307,39 +351,35 @@
         }
       }
 
-      // 更新粒子
       for (let i = particles.length - 1; i >= 0; i--) {
         let p = particles[i]; p.x += p.vx; p.y += p.vy; p.vy += 0.08; p.life -= p.decay;
         if (p.life <= 0) particles.splice(i, 1);
       }
-
-      // 更新電波紋
       for (let i = ripples.length - 1; i >= 0; i--) {
-        let rp = ripples[i];
-        rp.r += rp.speed;
-        rp.alpha -= 0.008;
+        let rp = ripples[i]; rp.r += rp.speed; rp.alpha -= 0.008;
         if (rp.alpha <= 0) ripples.splice(i, 1);
       }
     }
 
     function draw() {
-      ctx.fillStyle = '#0a0a2a'; ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = '#0a0a2a'; ctx.fillRect(0, 0, canvas.width, canvas.height);
       for (let s of stars) { ctx.fillStyle = `rgba(255,255,255,${s.b})`; ctx.beginPath(); ctx.arc(s.x, s.y, s.s, 0, Math.PI*2); ctx.fill(); }
 
-      // 繪製飛碟 (優先使用圖片，載入失敗則回退畫圖)
+      // 繪製飛碟 (使用去背後的圖片，若無則用預設圖形)
       for (let u of ufoes) {
-        if (ufoImg.complete && ufoImg.naturalWidth > 0) {
-          ctx.drawImage(ufoImg, u.x - u.r * 1.5, u.y - u.r, u.r * 3, u.r * 2);
+        if (cleanedUfo) {
+          // 繪製去背圖片
+          ctx.drawImage(cleanedUfo, u.x - u.r * 1.5, u.y - u.r, u.r * 3, u.r * 2);
         } else {
+          // 備用圖形
           ctx.fillStyle = '#00e5ff'; ctx.beginPath(); ctx.ellipse(u.x, u.y + 6, u.r * 1.5, u.r * 0.6, 0, 0, Math.PI * 2); ctx.fill();
-          ctx.fillStyle = '#00b3cc'; ctx.beginPath(); ctx.ellipse(u.x, u.y - 4, u.r * 0.7, u.r * 0.5, 0, 0, Math.PI * 2); ctx.fill();
         }
       }
 
       // 繪製發射車
       if (!gameOver) {
-        if (jetImg.complete && jetImg.naturalWidth > 0) {
-          ctx.drawImage(jetImg, playerX - playerW * 0.6, playerY - playerH * 0.9, playerW * 1.2, playerH * 1.6);
+        if (cleanedJet) {
+          ctx.drawImage(cleanedJet, playerX - playerW * 0.6, playerY - playerH * 0.9, playerW * 1.2, playerH * 1.6);
         } else {
           ctx.fillStyle = '#333'; ctx.beginPath(); 
           ctx.moveTo(playerX - playerW/2, playerY + playerH/2); 
@@ -349,19 +389,16 @@
         }
       }
 
-      // 我方飛彈
       for (let m of missiles) { 
         ctx.fillStyle = '#ff0000'; ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI*2); ctx.fill(); 
         ctx.fillStyle = 'rgba(255, 80, 0, 0.6)'; ctx.fillRect(m.x - 2, m.y, 4, 12); ctx.fillStyle = '#ff0000'; 
       }
 
-      // 敵方飛彈
       for (let m of enemyMissiles) {
         ctx.fillStyle = '#00ffff'; ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI*2); ctx.fill();
         ctx.fillStyle = 'rgba(0, 255, 255, 0.4)'; ctx.fillRect(m.x - 2, m.y - 10, 4, 12); ctx.fillStyle = '#00ffff';
       }
 
-      // 電波紋
       ctx.lineWidth = 3;
       for (let rp of ripples) {
         ctx.beginPath(); ctx.arc(rp.x, rp.y, rp.r, 0, Math.PI*2);
@@ -370,7 +407,6 @@
         ctx.stroke(); ctx.shadowBlur = 0;
       }
 
-      // 粒子
       for (let p of particles) { ctx.globalAlpha = p.life; ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill(); }
       ctx.globalAlpha = 1;
     }
@@ -386,34 +422,32 @@
       if (!gameOver) {
         playerX = clientX;
         if (playerX < 30) playerX = 30;
-        if (playerX > w - 30) playerX = w - 30;
+        if (playerX > canvas.width - 30) playerX = canvas.width - 30;
       }
     }
     canvas.addEventListener('touchmove', e => { e.preventDefault(); handleMove(e.touches[0].clientX); }, {passive: false});
     canvas.addEventListener('mousemove', e => { handleMove(e.clientX); });
 
-    // 首次互動解鎖音效/BGM
     canvas.addEventListener('touchstart', () => { ensureAudioContext(); playBGM(); }, {once: true});
     canvas.addEventListener('mousedown', () => { ensureAudioContext(); playBGM(); }, {once: true});
 
     function resetGame() {
-      if (animId) cancelAnimationFrame(animId); // 確保舊迴圈停止
+      if (animId) cancelAnimationFrame(animId);
       score = 0; scoreEl.textContent = 0;
       playerHP = MAX_HP; updateHPUI();
       gameOver = false; isPaused = false;
       missiles = []; ufoes = []; enemyMissiles = []; particles = []; ripples = [];
       ufoTimer = 0; autoFireTimer = 0;
-      playerX = w / 2;
+      playerX = canvas.width / 2;
       gameoverEl.style.display = 'none';
       instEl.style.opacity = 1;
       ensureAudioContext();
       playBGM();
-      loop(); // 重新啟動遊戲迴圈
+      loop();
     }
     restartBtn.addEventListener('click', resetGame);
     restartBtn.addEventListener('touchstart', e => { e.preventDefault(); resetGame(); });
 
-    // Service Worker
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js')
@@ -422,8 +456,8 @@
       });
     }
 
-    updateHPUI();
-    loop();
+    // 確保資源載入後才開始
+    // (initGame 會由 checkReady 觸發)
   </script>
 </body>
 </html>
