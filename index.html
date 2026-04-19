@@ -148,7 +148,7 @@
     const bgmEl = document.getElementById('bgm');
 
     // 圖片快取
-    let ufoCanvases = { 1: null, 2: null, 3: null }; // 各關飛碟
+    let ufoCanvases = { 1: null, 2: null, 3: null };
     let jetCanvas = null;
     
     // 遊戲狀態
@@ -214,7 +214,7 @@
         
         for (let i = 0; i < data.length; i += 4) {
           if (data[i] > 200 && data[i+1] > 200 && data[i+2] > 200) {
-            data[i + 3] = 0; // 變透明
+            data[i + 3] = 0;
           }
         }
         tempCtx.putImageData(imageData, 0, 0);
@@ -224,17 +224,13 @@
       img.src = src;
     }
 
-    // 初始化
     function initGame() {
       resize();
       updateHPUI();
-      
-      // 載入各關飛碟與戰機
       removeWhiteBackground('UFO.png', (r) => { ufoCanvases[1] = r; });
       removeWhiteBackground('UFO-2.png', (r) => { ufoCanvases[2] = r; });
       removeWhiteBackground('UFO-3.png', (r) => { ufoCanvases[3] = r; });
       removeWhiteBackground('JET.png', (r) => { jetCanvas = r; });
-      
       loop();
     }
 
@@ -358,7 +354,6 @@
       targetEl.textContent = levelConfig[currentLevel].targets;
       levelEl.textContent = currentLevel;
       playerHP = MAX_HP; updateHPUI();
-      
       clearGameObjects();
       levelCompleteEl.style.display = 'none';
       isPaused = false;
@@ -455,10 +450,16 @@
 
         u.shootTimer--;
         if (u.shootTimer <= 0) {
+          // 🔥 依關卡設定敵方炸彈顏色與大小
+          let bombType = 'cyan';
+          let bombR = 5;
+          if (currentLevel === 2) { bombType = 'red'; bombR = 7; }
+          else if (currentLevel === 3) { bombType = 'dual_giant'; bombR = 12; }
+          
           enemyMissiles.push({ 
             x: u.x, y: u.y + u.r, 
             speed: (4 + Math.random() * 2) * cfg.bulletSpeed, 
-            r: 5 
+            r: bombR, type: bombType 
           });
           u.shootTimer = Math.floor(Math.random() * cfg.fireRate + 60);
         }
@@ -518,7 +519,6 @@
         ctx.beginPath(); ctx.arc(s.x, s.y, s.s, 0, Math.PI*2); ctx.fill();
       }
 
-      // 繪製飛碟 (依關卡選擇對應圖片)
       const currentUfo = ufoCanvases[currentLevel];
       for (let u of ufoes) {
         if (currentUfo) {
@@ -528,7 +528,6 @@
         }
       }
 
-      // 繪製戰機
       if (!gameOver && !gameEnded) {
         if (jetCanvas) {
           ctx.drawImage(jetCanvas, playerX - playerW*0.55, playerY - playerH*0.85, playerW*1.1, playerH*1.5);
@@ -548,8 +547,31 @@
         ctx.fillRect(m.x-2, m.y, 4, m.type === 'bomb' ? 10 : 14);
       }
 
+      // 🎨 敵方飛彈繪製邏輯（依關卡變化）
       for (let m of enemyMissiles) {
-        ctx.fillStyle = '#00ffff'; ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI*2); ctx.fill();
+        if (m.type === 'red') {
+          // 第二關：紅色炸彈
+          ctx.fillStyle = '#ff1111';
+          ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = 'rgba(255, 0, 0, 0.35)';
+          ctx.beginPath(); ctx.arc(m.x, m.y, m.r + 4, 0, Math.PI*2); ctx.fill();
+        } else if (m.type === 'dual_giant') {
+          // 第三關：紅藍雙色巨型炸彈
+          ctx.fillStyle = '#0044cc'; // 藍色外殼
+          ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI*2); ctx.fill();
+          
+          ctx.fillStyle = '#ff2200'; // 紅色內核
+          ctx.beginPath(); ctx.arc(m.x, m.y, m.r * 0.65, 0, Math.PI*2); ctx.fill();
+          
+          // 核心高亮光暈
+          ctx.shadowBlur = 15; ctx.shadowColor = '#ff0000';
+          ctx.fillStyle = '#ffaa00';
+          ctx.beginPath(); ctx.arc(m.x, m.y, m.r * 0.25, 0, Math.PI*2); ctx.fill();
+          ctx.shadowBlur = 0;
+        } else {
+          // 第一關：預設青色
+          ctx.fillStyle = '#00ffff'; ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI*2); ctx.fill();
+        }
       }
 
       ctx.lineWidth = 2;
@@ -573,7 +595,6 @@
       animId = requestAnimationFrame(loop);
     }
 
-    // 四向觸控移動
     canvas.addEventListener('touchstart', e => {
       e.preventDefault();
       isTouching = true;
@@ -592,7 +613,7 @@
       playerX += (touchX - touchStartX) * 1.2;
       playerY += (touchY - touchStartY) * 1.2;
       
-      // 邊界限制：Y軸最低只能到螢幕中間 (0.5)，保持在下半部
+      // 限制戰機最高只能移動到螢幕二分之一處
       playerX = Math.max(playerW/2, Math.min(canvas.width - playerW/2, playerX));
       playerY = Math.max(canvas.height * 0.5, Math.min(canvas.height - 30, playerY));
       
@@ -602,7 +623,6 @@
 
     canvas.addEventListener('touchend', () => { isTouching = false; });
 
-    // 滑鼠支援
     let mouseDown = false;
     canvas.addEventListener('mousedown', e => { 
       mouseDown = true; touchStartX = e.clientX; touchStartY = e.clientY; playBGM();
@@ -617,20 +637,17 @@
     });
     canvas.addEventListener('mouseup', () => { mouseDown = false; });
 
-    // 按鈕事件
     restartBtn.addEventListener('click', resetToLevel1);
     restartBtn.addEventListener('touchstart', e => { e.preventDefault(); resetToLevel1(); });
     quitBtn.addEventListener('click', quitGame);
     quitBtn.addEventListener('touchstart', e => { e.preventDefault(); quitGame(); });
 
-    // PWA
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js').catch(() => {});
       });
     }
 
-    // 啟動
     window.addEventListener('load', initGame);
   </script>
 </body>
