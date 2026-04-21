@@ -23,7 +23,6 @@
     body { overflow: hidden; background: #0a0a2a; touch-action: none; user-select: none; -webkit-user-select: none; font-family: "Microsoft JhengHei", sans-serif; }
     canvas { display: block; }
     
-    /* 🎮 標題畫面樣式 */
     #title-screen {
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
       background: radial-gradient(circle at center, #1a1a4e 0%, #0a0a2a 50%, #050514 100%);
@@ -61,7 +60,6 @@
     }
     #start-button:active { transform: scale(0.95); }
 
-    /* 📳 螢幕震動動畫 (iOS 震動替代方案) */
     @keyframes screenShake {
       0%, 100% { transform: translate(0, 0); }
       10% { transform: translate(-8px, -4px); }
@@ -78,7 +76,6 @@
       animation: screenShake 0.35s cubic-bezier(.36,.07,.19,.97) both;
     }
 
-    /* 遊戲 UI 樣式 */
     #ui { position: absolute; top: 12px; left: 12px; color: #fff; font-size: 18px; text-shadow: 0 2px 4px rgba(0,0,0,0.8); pointer-events: none; z-index: 5; }
     #hp-container {
       position: absolute; top: 12px; right: 12px; width: 140px; height: 16px;
@@ -154,7 +151,6 @@
   </style>
 </head>
 <body>
-  <!-- 🎮 標題畫面 -->
   <div id="title-screen">
     <div id="title-logo">🚀 銀河護衛</div>
     <div id="title-subtitle">GALAXY DEFENSE</div>
@@ -214,8 +210,6 @@
     const titleScreen = document.getElementById('title-screen');
     const startButton = document.getElementById('start-button');
 
-    let audioReady = false;
-    let bgmStarted = false;
     let audioCtx;
     let gameStarted = false;
     let assetsLoaded = 0;
@@ -262,39 +256,49 @@
 
     const cityImages = { 1: 'TAIPEI.png', 2: 'TAICHUNG.png', 3: 'PARIS.png' };
 
-    function unlockAudio() {
-      if (audioReady) return;
-      audioReady = true;
-      ensureAudioContext();
-      [cannonEl, gameloseEl, nextLevelEl, bgmEl].forEach(el => {
+    // 🔊 解鎖 SFX 音訊（不含 BGM）
+    function unlockSFX() {
+      [cannonEl, gameloseEl, nextLevelEl].forEach(el => {
         el.muted = false;
-        el.play().then(() => el.pause()).catch(() => {});
+        el.play().then(() => {
+          el.pause();
+          el.currentTime = 0;
+        }).catch(() => {});
       });
     }
 
+    // 🔊 確保 AudioContext 就緒
     function ensureAudioContext() {
-      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      if (audioCtx.state === 'suspended') audioCtx.resume();
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
     }
 
+    // 🎵 播放 BGM（獨立函數）
     function playBGM() {
-      if (bgmStarted) return;
-      bgmEl.volume = 0.35; bgmEl.currentTime = 0;
-      bgmEl.play().then(() => { bgmStarted = true; }).catch(() => {});
+      bgmEl.volume = 0.35;
+      bgmEl.currentTime = 0;
+      bgmEl.play().catch(e => console.log('BGM 播放失敗:', e));
     }
 
-    function pauseBGM() { bgmEl.pause(); bgmStarted = false; }
+    // ⏸️ 暫停 BGM
+    function pauseBGM() { 
+      bgmEl.pause(); 
+    }
 
     function playCannon() {
-      if (!audioReady) unlockAudio();
-      cannonEl.currentTime = 0; cannonEl.volume = 0.4;
+      cannonEl.currentTime = 0; 
+      cannonEl.volume = 0.4;
       cannonEl.play().catch(() => {});
     }
 
     function playGameLoseAndWait() {
       return new Promise((resolve) => {
-        if (!audioReady) unlockAudio();
-        gameloseEl.currentTime = 0; gameloseEl.volume = 0.65;
+        gameloseEl.currentTime = 0; 
+        gameloseEl.volume = 0.65;
         gameloseEl.onended = () => resolve();
         gameloseEl.play().catch(() => resolve());
       });
@@ -331,22 +335,39 @@
       img.src = src;
     }
 
-    function startGame() {
+    // 🚀 啟動遊戲（關鍵修正）
+    async function startGame() {
       if (gameStarted) return;
       gameStarted = true;
-      unlockAudio();
+      
+      // 1. 立即解鎖 AudioContext
+      ensureAudioContext();
+      
+      // 2. 解鎖 SFX
+      unlockSFX();
+      
+      // 3. 等待一小段時間確保音訊上下文完全解鎖
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // 4. 播放 BGM
       playBGM();
+      
+      // 5. 隱藏標題畫面
       titleScreen.style.opacity = 0;
       setTimeout(() => { titleScreen.style.display = 'none'; }, 500);
+      
+      // 6. 啟動遊戲
       resize();
       updateHPUI();
       loop();
     }
 
     startButton.addEventListener('click', startGame);
-    startButton.addEventListener('touchstart', (e) => { e.preventDefault(); startGame(); });
+    startButton.addEventListener('touchstart', (e) => { 
+      e.preventDefault(); 
+      startGame(); 
+    });
 
-    // 📳 螢幕震動 (iOS 相容方案)
     function shakeScreen() {
       canvas.classList.add('shake');
       setTimeout(() => canvas.classList.remove('shake'), 350);
@@ -430,8 +451,6 @@
       cityImg.onload = () => console.log(`成功載入: ${imgUrl}`);
       cityImg.onerror = () => { cityImg.classList.add('hidden'); cityError.style.display = 'block'; };
       
-      // 🎵 播放過關慶祝音效
-      if (!audioReady) unlockAudio();
       nextLevelEl.currentTime = 0;
       nextLevelEl.volume = 0.7;
       nextLevelEl.play().catch(() => {});
@@ -503,7 +522,6 @@
       clearGameObjects();
       gameoverEl.style.display = 'none'; finalEndEl.style.display = 'none';
       instEl.style.opacity = 1;
-      bgmStarted = false;
       playBGM();
       loop();
     }
@@ -566,7 +584,6 @@
           enemyMissiles.splice(i, 1);
           playerHP--; updateHPUI();
           
-          // 📳 震動 + 螢幕震動 + 火焰特效
           if (navigator.vibrate) navigator.vibrate(200);
           shakeScreen();
           playerHitFlash = 18;
