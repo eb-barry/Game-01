@@ -104,7 +104,7 @@
 </head>
 <body>
   <canvas id="game"></canvas>
-  <div id="ui">擊中: <span id="score">0</span> / <span id="target">10</span></div>
+  <div id="ui">擊中: <span id="score">0</span> / <span id="target">20</span></div>
   <div id="level-indicator">第 <span id="level">1</span> 關</div>
   <div id="hp-container"><div id="hp-bar"></div></div>
   <div id="instruction">👆 拖曳畫面控制戰機移動（自動射擊）</div>
@@ -189,11 +189,11 @@
     let ufoTimer = 0;
     let autoFireTimer = 0;
 
-    // 關卡設定
+    // 🎯 關卡設定（難度大幅提升）
     const levelConfig = {
-      1: { targets: 10, weapon: 'bomb', ufoSpeed: 1.0, bulletSpeed: 1.0, spawnRate: 80, fireRate: 100 },
-      2: { targets: 15, weapon: 'laser', ufoSpeed: 1.5, bulletSpeed: 2.0, spawnRate: 40, fireRate: 50 },
-      3: { targets: 25, weapon: 'laser', ufoSpeed: 2.0, bulletSpeed: 3.0, spawnRate: 27, fireRate: 33 }
+      1: { targets: 20, weapon: 'bomb', ufoSpeed: 1.0, bulletSpeed: 1.0, spawnRate: 75, fireRate: 95 },
+      2: { targets: 30, weapon: 'laser', ufoSpeed: 1.5, bulletSpeed: 2.0, spawnRate: 38, fireRate: 48 },
+      3: { targets: 50, weapon: 'laser', ufoSpeed: 2.0, bulletSpeed: 3.0, spawnRate: 25, fireRate: 32 }
     };
 
     const victoryMessages = {
@@ -208,21 +208,15 @@
       3: 'PARIS.png'
     };
 
-    // 🔊 音訊解鎖機制（解決瀏覽器自動播放限制）
+    // 🔊 音訊解鎖機制
     function unlockAudio() {
       if (audioReady) return;
       audioReady = true;
-      
-      // 1. 解鎖 Web Audio API
       ensureAudioContext();
-      
-      // 2. 解鎖 DOM <audio> 元素（播放並立即暫停，無聲解鎖）
       [cannonEl, gameloseEl, bgmEl].forEach(el => {
         el.muted = false;
         el.play().then(() => el.pause()).catch(() => {});
       });
-      
-      console.log('🔊 音訊系統已解鎖');
     }
 
     function ensureAudioContext() {
@@ -237,36 +231,23 @@
       bgmEl.play().then(() => { bgmStarted = true; }).catch(() => {});
     }
 
-    function pauseBGM() { 
-      bgmEl.pause(); 
-      bgmStarted = false; 
-    }
+    function pauseBGM() { bgmEl.pause(); bgmStarted = false; }
 
     function playCannon() {
       if (!audioReady) unlockAudio();
       cannonEl.currentTime = 0;
       cannonEl.volume = 0.4;
-      cannonEl.play().catch(e => console.log('Cannon play blocked:', e));
+      cannonEl.play().catch(() => {});
     }
 
-    function playGameLose() {
-      if (!audioReady) unlockAudio();
-      gameloseEl.currentTime = 0;
-      gameloseEl.volume = 0.5;
-      gameloseEl.play().catch(e => console.log('GameLose play blocked:', e));
-    }
-
-    function playGameOverSound() {
-      ensureAudioContext();
-      const t = audioCtx.currentTime;
-      [400, 350, 300, 200].forEach((f, i) => {
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = 'sawtooth'; osc.frequency.value = f;
-        gain.gain.setValueAtTime(0.12, t + i*0.15);
-        gain.gain.exponentialRampToValueAtTime(0.01, t + i*0.15 + 0.5);
-        osc.connect(gain).connect(audioCtx.destination);
-        osc.start(t + i*0.15); osc.stop(t + i*0.15 + 0.5);
+    // ⏳ 播放 GAMELOSE.mp3 並回傳 Promise（待播放完畢才 resolve）
+    function playGameLoseAndWait() {
+      return new Promise((resolve) => {
+        if (!audioReady) unlockAudio();
+        gameloseEl.currentTime = 0;
+        gameloseEl.volume = 0.65;
+        gameloseEl.onended = () => resolve();
+        gameloseEl.play().catch(() => resolve());
       });
     }
 
@@ -287,8 +268,7 @@
       img.onload = () => {
         const tempCanvas = document.createElement('canvas');
         const tempCtx = tempCanvas.getContext('2d');
-        tempCanvas.width = img.width;
-        tempCanvas.height = img.height;
+        tempCanvas.width = img.width; tempCanvas.height = img.height;
         tempCtx.drawImage(img, 0, 0);
         const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
         const data = imageData.data;
@@ -398,13 +378,14 @@
       speakTTS('遊戲結束，不要玩得太沉迷');
     }
 
-    function triggerGameOver() {
+    // 💥 觸發 Game Over（異步流程：先播音效 → 完畢後顯示畫面與語音）
+    async function triggerGameOver() {
       if (gameOver) return;
       gameOver = true;
       isPaused = true;
       pauseBGM();
-      playGameLose();
-      
+
+      // 視覺爆炸特效（立即播放，讓玩家知道戰機被擊毀）
       for(let i=0; i<80; i++) {
         const angle = Math.random() * Math.PI * 2;
         const speed = Math.random() * 6 + 2;
@@ -422,9 +403,13 @@
           speed: 7 + i * 4, alpha: 0.8 - i * 0.15, color: '#00ffff'
         });
       }
+
+      // ⏳ 等待 GAMELOSE.mp3 完整播放完畢
+      await playGameLoseAndWait();
+
+      // 🎬 播放完畢後才顯示 Game Over 畫面與提示語音
       gameoverEl.style.display = 'flex';
-      playGameOverSound();
-      setTimeout(() => speakTTS('遊戲結束，血量歸零'), 800);
+      speakTTS('遊戲結束，血量歸零');
     }
 
     function clearGameObjects() {
@@ -435,7 +420,7 @@
     function resetToLevel1() {
       if (animId) cancelAnimationFrame(animId);
       currentLevel = 1; score = 0; playerHP = MAX_HP;
-      scoreEl.textContent = 0; targetEl.textContent = 10; levelEl.textContent = 1;
+      scoreEl.textContent = 0; targetEl.textContent = 20; levelEl.textContent = 1;
       updateHPUI(); gameOver = false; gameEnded = false; isPaused = false;
       playerX = canvas.width / 2; playerY = canvas.height - 100;
       clearGameObjects();
@@ -517,7 +502,7 @@
             missiles.splice(i, 1); ufoes.splice(j, 1);
             score++; scoreEl.textContent = score;
             if (score >= cfg.targets) levelComplete();
-            playCannon(); // 🔊 飛碟擊中爆炸音效
+            playCannon();
             break;
           }
         }
@@ -579,18 +564,13 @@
 
       for (let m of enemyMissiles) {
         if (m.type === 'red') {
-          ctx.fillStyle = '#ff1111';
-          ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI*2); ctx.fill();
-          ctx.fillStyle = 'rgba(255, 0, 0, 0.35)';
-          ctx.beginPath(); ctx.arc(m.x, m.y, m.r + 4, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = '#ff1111'; ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = 'rgba(255, 0, 0, 0.35)'; ctx.beginPath(); ctx.arc(m.x, m.y, m.r + 4, 0, Math.PI*2); ctx.fill();
         } else if (m.type === 'dual_giant') {
-          ctx.fillStyle = '#0044cc';
-          ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI*2); ctx.fill();
-          ctx.fillStyle = '#ff2200';
-          ctx.beginPath(); ctx.arc(m.x, m.y, m.r * 0.65, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = '#0044cc'; ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = '#ff2200'; ctx.beginPath(); ctx.arc(m.x, m.y, m.r * 0.65, 0, Math.PI*2); ctx.fill();
           ctx.shadowBlur = 15; ctx.shadowColor = '#ff0000';
-          ctx.fillStyle = '#ffaa00';
-          ctx.beginPath(); ctx.arc(m.x, m.y, m.r * 0.25, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = '#ffaa00'; ctx.beginPath(); ctx.arc(m.x, m.y, m.r * 0.25, 0, Math.PI*2); ctx.fill();
           ctx.shadowBlur = 0;
         } else {
           ctx.fillStyle = '#00ffff'; ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI*2); ctx.fill();
@@ -618,13 +598,12 @@
       animId = requestAnimationFrame(loop);
     }
 
-    // 👆 觸控/滑鼠事件：首次互動即解鎖音訊
     canvas.addEventListener('touchstart', e => {
       e.preventDefault();
       isTouching = true;
       touchStartX = e.touches[0].clientX;
       touchStartY = e.touches[0].clientY;
-      unlockAudio(); // 🔓 解鎖音訊
+      unlockAudio();
       playBGM();
     }, {passive: false});
 
@@ -646,8 +625,7 @@
     let mouseDown = false;
     canvas.addEventListener('mousedown', e => { 
       mouseDown = true; touchStartX = e.clientX; touchStartY = e.clientY; 
-      unlockAudio(); // 🔓 解鎖音訊
-      playBGM();
+      unlockAudio(); playBGM();
     });
     canvas.addEventListener('mousemove', e => {
       if (!mouseDown || isPaused) return;
