@@ -1,7 +1,7 @@
 {
-  "name": "紅彈射飛碟",
-  "short_name": "UFO射手",
-  "description": "左右滑動移動，雙擊發射紅色飛彈擊落飛碟！",
+  "name": "銀河護衛 - 三關挑戰",
+  "short_name": "銀河護衛",
+  "description": "駕駛戰機保衛銀河，擊落外星飛碟！三關挑戰， progressively increasing difficulty.",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#0a0a2a",
@@ -9,16 +9,16 @@
   "orientation": "portrait",
   "icons": [
     {
-      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><circle cx='96' cy='96' r='80' fill='%23ff2222'/><text x='96' y='130' font-size='100' text-anchor='middle'>🚀</text></svg>",
+      "src": "GALEXY-DEFENSE.png",
       "sizes": "192x192",
-      "type": "image/svg+xml",
-      "purpose": "any"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
-      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><circle cx='256' cy='256' r='220' fill='%23ff2222'/><text x='256' y='320' font-size='240' text-anchor='middle'>🚀</text></svg>",
+      "src": "GALEXY-DEFENSE.png",
       "sizes": "512x512",
-      "type": "image/svg+xml",
-      "purpose": "any"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }

@@ -6,9 +6,11 @@
   <meta name="theme-color" content="#0a0a2a">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>紅彈射飛碟 - 三關挑戰</title>
+  <meta name="apple-mobile-web-app-title" content="銀河護衛">
+  <title>銀河護衛 - 三關挑戰</title>
   <link rel="manifest" href="manifest.json">
-  <link rel="icon" href="image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
+  <link rel="icon" href="GALEXY-DEFENSE.png">
+  <link rel="apple-touch-icon" href="GALEXY-DEFENSE.png">
   
   <!-- 音檔設定 -->
   <audio id="bgm" src="BGM.mp3" loop preload="auto"></audio>
@@ -28,23 +30,26 @@
       z-index: 9999; color: #fff; text-align: center; padding: 20px;
       transition: opacity 0.5s ease;
     }
-    #loading-title { font-size: 24px; margin-bottom: 15px; letter-spacing: 2px; }
+    #loading-title { font-size: 28px; margin-bottom: 15px; letter-spacing: 3px; font-weight: bold; }
     #loading-spinner {
-      width: 50px; height: 50px; border: 4px solid rgba(255,255,255,0.2);
+      width: 60px; height: 60px; border: 5px solid rgba(255,255,255,0.2);
       border-top-color: #33ff33; border-radius: 50%;
-      animation: spin 0.8s linear infinite; margin: 20px 0;
+      animation: spin 0.8s linear infinite; margin: 25px 0;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+    #loading-text { font-size: 16px; color: rgba(255,255,255,0.8); margin-bottom: 10px; }
     #start-prompt {
-      display: none; font-size: 20px; color: #33ff33; margin-top: 25px;
+      display: none; font-size: 22px; color: #33ff33; margin-top: 30px;
       animation: pulse 1.5s infinite alternate; cursor: pointer;
+      padding: 15px 30px; background: rgba(51,255,51,0.1);
+      border-radius: 12px; border: 2px solid #33ff33;
     }
     @keyframes pulse {
-      0% { transform: scale(1); opacity: 0.8; }
-      100% { transform: scale(1.05); opacity: 1; }
+      0% { transform: scale(1); opacity: 0.7; }
+      100% { transform: scale(1.08); opacity: 1; }
     }
 
-    /* 遊戲 UI 樣式（保持原樣） */
+    /* 遊戲 UI 樣式 */
     #ui { position: absolute; top: 12px; left: 12px; color: #fff; font-size: 18px; text-shadow: 0 2px 4px rgba(0,0,0,0.8); pointer-events: none; z-index: 5; }
     #hp-container {
       position: absolute; top: 12px; right: 12px; width: 140px; height: 16px;
@@ -122,10 +127,10 @@
 <body>
   <!-- 📦 載入與啟動畫面 -->
   <div id="loading-screen">
-    <div id="loading-title">🚀 紅彈射飛碟</div>
+    <div id="loading-title">🚀 銀河護衛</div>
     <div id="loading-spinner"></div>
     <div id="loading-text">資料載入中，請稍後...</div>
-    <div id="start-prompt">🎮 載入完成！點擊畫面開始遊戲</div>
+    <div id="start-prompt">🎮 點擊任意處開始遊戲</div>
   </div>
 
   <canvas id="game"></canvas>
@@ -187,6 +192,7 @@
     let gameStarted = false;
     let assetsLoaded = 0;
     const totalAssets = 5; // 4 張圖片 + 1 個 BGM
+    let loadingTimeoutShown = false;
 
     // 圖片快取
     let ufoCanvases = { 1: null, 2: null, 3: null };
@@ -240,12 +246,26 @@
     // 📦 資源載入完成檢查
     function checkAssetsReady() {
       assetsLoaded++;
-      if (assetsLoaded >= totalAssets) {
-        loadingText.style.display = 'none';
-        loadingSpinner.style.display = 'none';
-        startPrompt.style.display = 'block';
+      if (assetsLoaded >= totalAssets && !loadingTimeoutShown) {
+        showStartPrompt();
       }
     }
+
+    // ⏱️ 顯示開始提示（最多等10秒）
+    function showStartPrompt() {
+      if (loadingTimeoutShown) return;
+      loadingTimeoutShown = true;
+      loadingText.style.display = 'none';
+      loadingSpinner.style.display = 'none';
+      startPrompt.style.display = 'block';
+    }
+
+    // 10秒超時強制顯示開始提示
+    setTimeout(() => {
+      if (!gameStarted) {
+        showStartPrompt();
+      }
+    }, 10000);
 
     // 🔊 音訊解鎖機制
     function unlockAudio() {
@@ -315,12 +335,12 @@
         }
         tempCtx.putImageData(imageData, 0, 0);
         callback(tempCanvas);
-        checkAssetsReady(); // ✅ 載入完成計數
+        checkAssetsReady();
       };
       img.onerror = () => { 
         console.warn(`圖片載入失敗: ${src}`); 
         callback(null); 
-        checkAssetsReady(); // ✅ 失敗也計數，避免卡住
+        checkAssetsReady();
       };
       img.src = src;
     }
@@ -341,9 +361,15 @@
       loop();
     }
 
-    // 觸控啟動
-    loadingScreen.addEventListener('touchstart', startGame, {once: true});
-    loadingScreen.addEventListener('click', startGame, {once: true});
+    // 觸控/點擊啟動
+    loadingScreen.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      startGame();
+    }, {once: true});
+    
+    loadingScreen.addEventListener('click', () => {
+      startGame();
+    }, {once: true});
 
     function resize() {
       const w = canvas.width = window.innerWidth;
@@ -696,13 +722,11 @@
 
     // 📦 初始化載入流程
     window.addEventListener('load', () => {
-      // 預載圖片
       removeWhiteBackground('UFO.png', (r) => { ufoCanvases[1] = r; });
       removeWhiteBackground('UFO-2.png', (r) => { ufoCanvases[2] = r; });
       removeWhiteBackground('UFO-3.png', (r) => { ufoCanvases[3] = r; });
       removeWhiteBackground('JET.png', (r) => { jetCanvas = r; });
       
-      // 預載 BGM
       const tempBgm = new Audio('BGM.mp3');
       tempBgm.addEventListener('canplaythrough', checkAssetsReady);
       tempBgm.addEventListener('error', () => { console.warn('BGM 預載失敗，仍繼續遊戲'); checkAssetsReady(); });
