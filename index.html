@@ -22,32 +22,49 @@
     body { overflow: hidden; background: #0a0a2a; touch-action: none; user-select: none; -webkit-user-select: none; font-family: "Microsoft JhengHei", sans-serif; }
     canvas { display: block; }
     
-    /* 📦 載入畫面樣式 */
-    #loading-screen {
+    /* 🎮 標題畫面樣式 */
+    #title-screen {
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      background: radial-gradient(circle at center, #0f0f3a 0%, #050514 100%);
+      background: radial-gradient(circle at center, #1a1a4e 0%, #0a0a2a 50%, #050514 100%);
       display: flex; flex-direction: column; justify-content: center; align-items: center;
       z-index: 9999; color: #fff; text-align: center; padding: 20px;
-      transition: opacity 0.5s ease;
     }
-    #loading-title { font-size: 28px; margin-bottom: 15px; letter-spacing: 3px; font-weight: bold; }
-    #loading-spinner {
-      width: 60px; height: 60px; border: 5px solid rgba(255,255,255,0.2);
-      border-top-color: #33ff33; border-radius: 50%;
-      animation: spin 0.8s linear infinite; margin: 25px 0;
+    #title-logo {
+      font-size: 42px; font-weight: bold; margin-bottom: 10px;
+      background: linear-gradient(135deg, #33ff33 0%, #00ccff 50%, #ff00ff 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text; text-shadow: 0 0 30px rgba(51,255,51,0.5);
+      letter-spacing: 8px; animation: titleGlow 2s ease-in-out infinite alternate;
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    #loading-text { font-size: 16px; color: rgba(255,255,255,0.8); margin-bottom: 10px; }
-    #start-prompt {
-      display: none; font-size: 22px; color: #33ff33; margin-top: 30px;
-      animation: pulse 1.5s infinite alternate; cursor: pointer;
-      padding: 15px 30px; background: rgba(51,255,51,0.1);
-      border-radius: 12px; border: 2px solid #33ff33;
+    @keyframes titleGlow {
+      0% { transform: scale(1); filter: brightness(1); }
+      100% { transform: scale(1.05); filter: brightness(1.3); }
     }
-    @keyframes pulse {
-      0% { transform: scale(1); opacity: 0.7; }
-      100% { transform: scale(1.08); opacity: 1; }
+    #title-subtitle {
+      font-size: 18px; color: rgba(255,255,255,0.7); margin-bottom: 40px;
+      letter-spacing: 3px;
     }
+    #title-rocket {
+      font-size: 80px; margin: 20px 0;
+      animation: rocketFloat 3s ease-in-out infinite;
+    }
+    @keyframes rocketFloat {
+      0%, 100% { transform: translateY(0) rotate(-5deg); }
+      50% { transform: translateY(-20px) rotate(5deg); }
+    }
+    #start-button {
+      padding: 20px 60px; font-size: 24px; font-weight: bold;
+      background: linear-gradient(135deg, #33ff33, #00aa00);
+      color: #000; border: 3px solid #66ff66; border-radius: 16px;
+      cursor: pointer; box-shadow: 0 0 30px rgba(51,255,51,0.6);
+      transition: all 0.3s; margin-top: 30px;
+      animation: buttonPulse 1.5s ease-in-out infinite;
+    }
+    @keyframes buttonPulse {
+      0%, 100% { transform: scale(1); box-shadow: 0 0 30px rgba(51,255,51,0.6); }
+      50% { transform: scale(1.08); box-shadow: 0 0 50px rgba(51,255,51,0.9); }
+    }
+    #start-button:active { transform: scale(0.95); }
 
     /* 遊戲 UI 樣式 */
     #ui { position: absolute; top: 12px; left: 12px; color: #fff; font-size: 18px; text-shadow: 0 2px 4px rgba(0,0,0,0.8); pointer-events: none; z-index: 5; }
@@ -125,12 +142,15 @@
   </style>
 </head>
 <body>
-  <!-- 📦 載入與啟動畫面 -->
-  <div id="loading-screen">
-    <div id="loading-title">🚀 銀河護衛</div>
-    <div id="loading-spinner"></div>
-    <div id="loading-text">資料載入中，請稍後...</div>
-    <div id="start-prompt">🎮 點擊任意處開始遊戲</div>
+  <!-- 🎮 標題畫面 -->
+  <div id="title-screen">
+    <div id="title-logo">🚀 銀河護衛</div>
+    <div id="title-subtitle">GALAXY DEFENSE</div>
+    <div id="title-rocket">🛸</div>
+    <div style="font-size: 16px; color: rgba(255,255,255,0.6); margin-top: 20px;">
+      擊落外星飛碟 · 保衛地球
+    </div>
+    <button id="start-button">點擊開始遊戲</button>
   </div>
 
   <canvas id="game"></canvas>
@@ -180,10 +200,8 @@
     const bgmEl = document.getElementById('bgm');
     const cannonEl = document.getElementById('cannon-sfx');
     const gameloseEl = document.getElementById('gamelose-sfx');
-    const loadingScreen = document.getElementById('loading-screen');
-    const loadingText = document.getElementById('loading-text');
-    const loadingSpinner = document.getElementById('loading-spinner');
-    const startPrompt = document.getElementById('start-prompt');
+    const titleScreen = document.getElementById('title-screen');
+    const startButton = document.getElementById('start-button');
 
     // 音訊與遊戲狀態
     let audioReady = false;
@@ -191,8 +209,7 @@
     let audioCtx;
     let gameStarted = false;
     let assetsLoaded = 0;
-    const totalAssets = 5; // 4 張圖片 + 1 個 BGM
-    let loadingTimeoutShown = false;
+    const totalAssets = 4; // 4 張圖片
 
     // 圖片快取
     let ufoCanvases = { 1: null, 2: null, 3: null };
@@ -213,6 +230,9 @@
     const playerW = 60, playerH = 50;
     let touchStartX = 0, touchStartY = 0;
     let isTouching = false;
+    
+    // 🔥 受傷特效狀態
+    let playerHitFlash = 0; // 閃光計時器
 
     // 遊戲物件
     let missiles = [];
@@ -242,30 +262,6 @@
       2: 'TAICHUNG.png',
       3: 'PARIS.png'
     };
-
-    // 📦 資源載入完成檢查
-    function checkAssetsReady() {
-      assetsLoaded++;
-      if (assetsLoaded >= totalAssets && !loadingTimeoutShown) {
-        showStartPrompt();
-      }
-    }
-
-    // ⏱️ 顯示開始提示（最多等10秒）
-    function showStartPrompt() {
-      if (loadingTimeoutShown) return;
-      loadingTimeoutShown = true;
-      loadingText.style.display = 'none';
-      loadingSpinner.style.display = 'none';
-      startPrompt.style.display = 'block';
-    }
-
-    // 10秒超時強制顯示開始提示
-    setTimeout(() => {
-      if (!gameStarted) {
-        showStartPrompt();
-      }
-    }, 10000);
 
     // 🔊 音訊解鎖機制
     function unlockAudio() {
@@ -335,12 +331,12 @@
         }
         tempCtx.putImageData(imageData, 0, 0);
         callback(tempCanvas);
-        checkAssetsReady();
+        assetsLoaded++;
       };
       img.onerror = () => { 
         console.warn(`圖片載入失敗: ${src}`); 
         callback(null); 
-        checkAssetsReady();
+        assetsLoaded++;
       };
       img.src = src;
     }
@@ -353,23 +349,20 @@
       unlockAudio();
       playBGM();
       
-      loadingScreen.style.opacity = 0;
-      setTimeout(() => { loadingScreen.style.display = 'none'; }, 500);
+      titleScreen.style.opacity = 0;
+      setTimeout(() => { titleScreen.style.display = 'none'; }, 500);
       
       resize();
       updateHPUI();
       loop();
     }
 
-    // 觸控/點擊啟動
-    loadingScreen.addEventListener('touchstart', (e) => {
+    // 點擊開始按鈕
+    startButton.addEventListener('click', startGame);
+    startButton.addEventListener('touchstart', (e) => {
       e.preventDefault();
       startGame();
-    }, {once: true});
-    
-    loadingScreen.addEventListener('click', () => {
-      startGame();
-    }, {once: true});
+    });
 
     function resize() {
       const w = canvas.width = window.innerWidth;
@@ -412,6 +405,24 @@
           x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
           life: 1, decay: 0.018 + Math.random() * 0.02,
           color: colors[Math.floor(Math.random() * colors.length)], size: Math.random() * 3 + 1.5
+        });
+      }
+    }
+
+    // 🔥 產生紅色火焰特效（玩家受傷時）
+    function spawnPlayerHitEffect() {
+      for (let i = 0; i < 30; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 3 + 1;
+        particles.push({
+          x: playerX + (Math.random() - 0.5) * playerW,
+          y: playerY + (Math.random() - 0.5) * playerH,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          life: 1,
+          decay: 0.03 + Math.random() * 0.02,
+          color: ['#ff0000', '#ff4400', '#ff8800', '#ffaa00'][Math.floor(Math.random() * 4)],
+          size: Math.random() * 5 + 3
         });
       }
     }
@@ -562,6 +573,14 @@
         if (Math.sqrt(dx*dx + dy*dy) < playerW/2 + m.r) {
           enemyMissiles.splice(i, 1);
           playerHP--; updateHPUI();
+          
+          // 🔥 觸發震動與火焰特效
+          if (navigator.vibrate) {
+            navigator.vibrate(200); // 震動 200ms
+          }
+          playerHitFlash = 15; // 閃光持續 15 幀
+          spawnPlayerHitEffect();
+          
           if (playerHP <= 0) triggerGameOver();
           break;
         }
@@ -587,6 +606,10 @@
           triggerGameOver(); break;
         }
       }
+      
+      // 更新閃光計時器
+      if (playerHitFlash > 0) playerHitFlash--;
+      
       updateParticles();
     }
 
@@ -618,6 +641,19 @@
       }
 
       if (!gameOver && !gameEnded) {
+        // 🔥 繪製紅色閃光外框（受傷時）
+        if (playerHitFlash > 0) {
+          const flashAlpha = playerHitFlash / 15;
+          ctx.save();
+          ctx.shadowBlur = 30 + Math.random() * 20;
+          ctx.shadowColor = `rgba(255, 0, 0, ${flashAlpha})`;
+          ctx.fillStyle = `rgba(255, 100, 0, ${flashAlpha * 0.5})`;
+          ctx.beginPath();
+          ctx.arc(playerX, playerY, playerW * 0.9, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+        
         if (jetCanvas) {
           ctx.drawImage(jetCanvas, playerX - playerW*0.55, playerY - playerH*0.85, playerW*1.1, playerH*1.5);
         } else {
@@ -726,10 +762,6 @@
       removeWhiteBackground('UFO-2.png', (r) => { ufoCanvases[2] = r; });
       removeWhiteBackground('UFO-3.png', (r) => { ufoCanvases[3] = r; });
       removeWhiteBackground('JET.png', (r) => { jetCanvas = r; });
-      
-      const tempBgm = new Audio('BGM.mp3');
-      tempBgm.addEventListener('canplaythrough', checkAssetsReady);
-      tempBgm.addEventListener('error', () => { console.warn('BGM 預載失敗，仍繼續遊戲'); checkAssetsReady(); });
     });
   </script>
 </body>
