@@ -7,763 +7,255 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="銀河護衛">
-  <title>銀河護衛 - 三關挑戰</title>
-  <link rel="manifest" href="manifest.json">
-  <link rel="icon" href="GALEXY-DEFENSE.png">
-  <link rel="apple-touch-icon" href="GALEXY-DEFENSE.png">
+  <title>銀河護衛 - 三章史詩</title>
   
-  <!-- 音檔設定 -->
-  <audio id="bgm" src="BGM.mp3" loop preload="auto"></audio>
-  <audio id="cannon-sfx" src="CANNON.mp3" preload="auto"></audio>
-  <audio id="gamelose-sfx" src="GAMELOSE.mp3" preload="auto"></audio>
-  <audio id="nextlevel-sfx" src="NEXT-LEVEL.mp3" preload="auto"></audio>
-
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="assets/images/GALEXY-DEFENSE.png">
+  <link rel="apple-touch-icon" href="assets/images/GALEXY-DEFENSE.png">
+  
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { overflow: hidden; background: #0a0a2a; touch-action: none; user-select: none; -webkit-user-select: none; font-family: "Microsoft JhengHei", sans-serif; }
+    body { 
+      overflow: hidden; background: #0a0a2a; touch-action: none; 
+      user-select: none; -webkit-user-select: none; 
+      font-family: "Microsoft JhengHei", sans-serif; 
+    }
     canvas { display: block; }
     
-    #title-screen {
+    /* 章節過場畫面 */
+    .chapter-screen {
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      background: radial-gradient(circle at center, #1a1a4e 0%, #0a0a2a 50%, #050514 100%);
-      display: flex; flex-direction: column; justify-content: center; align-items: center;
-      z-index: 9999; color: #fff; text-align: center; padding: 20px;
+      background: #0a0a2a; display: flex; flex-direction: column;
+      justify-content: center; align-items: center; z-index: 5000;
+      color: #fff; text-align: center;
     }
-    #title-logo {
-      font-size: 42px; font-weight: bold; margin-bottom: 10px;
-      background: linear-gradient(135deg, #33ff33 0%, #00ccff 50%, #ff00ff 100%);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-      background-clip: text; text-shadow: 0 0 30px rgba(51,255,51,0.5);
-      letter-spacing: 8px; animation: titleGlow 2s ease-in-out infinite alternate;
+    .chapter-screen img {
+      max-width: 90%; max-height: 80vh; object-fit: contain;
+      margin-bottom: 30px; animation: chapterFadeIn 0.5s ease;
     }
-    @keyframes titleGlow {
-      0% { transform: scale(1); filter: brightness(1); }
-      100% { transform: scale(1.05); filter: brightness(1.3); }
+    @keyframes chapterFadeIn {
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: scale(1); }
     }
-    #title-subtitle { font-size: 18px; color: rgba(255,255,255,0.7); margin-bottom: 40px; letter-spacing: 3px; }
-    #title-rocket { font-size: 80px; margin: 20px 0; animation: rocketFloat 3s ease-in-out infinite; }
-    @keyframes rocketFloat {
-      0%, 100% { transform: translateY(0) rotate(-5deg); }
-      50% { transform: translateY(-20px) rotate(5deg); }
+    .chapter-screen .tap-prompt {
+      font-size: 18px; color: rgba(255,255,255,0.8);
+      animation: pulse 1.5s infinite alternate;
     }
-    #start-button {
-      padding: 20px 60px; font-size: 24px; font-weight: bold;
+    @keyframes pulse {
+      0% { opacity: 0.6; } 100% { opacity: 1; }
+    }
+    
+    /* 影片過場 */
+    .ending-screen {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: #000; display: none; flex-direction: column;
+      justify-content: center; align-items: center; z-index: 6000;
+    }
+    .ending-screen video {
+      max-width: 100%; max-height: 80vh; object-fit: contain;
+    }
+    .ending-screen .skip-btn {
+      position: absolute; bottom: 30px; right: 30px;
+      padding: 10px 25px; background: rgba(255,255,255,0.2);
+      color: #fff; border: 1px solid #fff; border-radius: 20px;
+      font-size: 14px; cursor: pointer; display: none;
+    }
+    .ending-screen .skip-btn.show { display: block; }
+    
+    /* 排行榜畫面 */
+    #ranking-screen {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(10,10,42,0.95); display: none;
+      flex-direction: column; justify-content: center; align-items: center;
+      z-index: 7000; padding: 20px;
+    }
+    #ranking-canvas {
+      max-width: 100%; max-height: 85vh; border-radius: 12px;
+      box-shadow: 0 0 30px rgba(51,255,51,0.3);
+    }
+    #ranking-screen .close-btn {
+      margin-top: 20px; padding: 12px 35px;
       background: linear-gradient(135deg, #33ff33, #00aa00);
-      color: #000; border: 3px solid #66ff66; border-radius: 16px;
-      cursor: pointer; box-shadow: 0 0 30px rgba(51,255,51,0.6);
-      transition: all 0.3s; margin-top: 30px;
-      animation: buttonPulse 1.5s ease-in-out infinite;
-    }
-    @keyframes buttonPulse {
-      0%, 100% { transform: scale(1); box-shadow: 0 0 30px rgba(51,255,51,0.6); }
-      50% { transform: scale(1.08); box-shadow: 0 0 50px rgba(51,255,51,0.9); }
-    }
-    #start-button:active { transform: scale(0.95); }
-
-    @keyframes screenShake {
-      0%, 100% { transform: translate(0, 0); }
-      10% { transform: translate(-8px, -4px); }
-      20% { transform: translate(6px, 8px); }
-      30% { transform: translate(-6px, 4px); }
-      40% { transform: translate(4px, -8px); }
-      50% { transform: translate(-4px, 6px); }
-      60% { transform: translate(8px, -4px); }
-      70% { transform: translate(-8px, 4px); }
-      80% { transform: translate(4px, -6px); }
-      90% { transform: translate(-4px, 8px); }
-    }
-    .shake {
-      animation: screenShake 0.35s cubic-bezier(.36,.07,.19,.97) both;
-    }
-
-    #ui { position: absolute; top: 12px; left: 12px; color: #fff; font-size: 18px; text-shadow: 0 2px 4px rgba(0,0,0,0.8); pointer-events: none; z-index: 5; }
-    #hp-container {
-      position: absolute; top: 12px; right: 12px; width: 140px; height: 16px;
-      background: #222; border-radius: 8px; overflow: hidden; border: 2px solid #444; z-index: 5;
-    }
-    #hp-bar {
-      height: 100%; width: 100%; background: #33ff33; transition: width 0.3s ease, background 0.3s ease;
-    }
-    #level-indicator {
-      position: absolute; top: 40px; left: 12px; color: #ffff00; font-size: 16px;
-      text-shadow: 0 2px 4px rgba(0,0,0,0.8); z-index: 5; pointer-events: none;
-    }
-    #instruction {
-      position: absolute; bottom: 20px; width: 100%; text-align: center;
-      color: rgba(255,255,255,0.7); font-size: 15px; pointer-events: none; transition: opacity 2s; z-index: 5;
-      background: rgba(0,0,0,0.4); padding: 6px 0; border-radius: 8px;
-    }
-    
-    .overlay {
-      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(5, 5, 20, 0.95);
-      display: none; flex-direction: column; justify-content: center; align-items: center;
-      z-index: 20; padding: 20px;
-    }
-    .overlay h1 {
-      color: #33ff33; font-size: 26px; margin-bottom: 10px; text-align: center;
-      text-shadow: 0 0 15px #33ff33; line-height: 1.4;
-    }
-    .victory-msg {
-      color: #ffff00; font-size: 20px; margin-bottom: 20px; text-align: center;
-      text-shadow: 0 0 10px #ffaa00; font-weight: bold;
-      animation: pulse 2s infinite;
-    }
-    .city-container {
-      background: rgba(255,255,255,0.1); border-radius: 16px; padding: 12px;
-      margin-bottom: 24px; box-shadow: 0 0 25px rgba(51,255,51,0.3);
-      max-width: 90%; max-height: 45vh; display: flex; justify-content: center; align-items: center;
-    }
-    .city-image {
-      max-width: 100%; max-height: 35vh; object-fit: contain; border-radius: 8px; display: block;
-    }
-    .city-image.hidden { display: none; }
-    .city-error-msg { 
-      color: #ffaa00; font-size: 14px; text-align: center; 
-      background: rgba(255,170,0,0.15); padding: 12px; border-radius: 8px;
-      display: none; margin: 10px 0;
-    }
-    
-    .btn {
-      padding: 16px 40px; font-size: 20px; font-weight: bold;
-      background: linear-gradient(135deg, #33ff33, #00aa00);
-      color: #000; border: 2px solid #66ff66; border-radius: 12px;
-      cursor: pointer; box-shadow: 0 0 15px rgba(51,255,51,0.5);
-      transition: all 0.2s; margin: 8px;
-    }
-    .btn:active { transform: scale(0.95); }
-    .btn-red {
-      background: linear-gradient(135deg, #ff4444, #cc0000);
-      color: #fff; border: 2px solid #ff8888;
-      box-shadow: 0 0 15px rgba(255,0,0,0.5);
-    }
-    
-    #gameover h1 {
-      color: #ff3333; font-size: 34px;
-      text-shadow: 0 0 15px #ff0000, 0 0 30px #ff0000;
-      animation: glitch 1.5s infinite alternate;
-    }
-    @keyframes glitch {
-      0% { transform: translate(0); } 20% { transform: translate(-2px, 2px); }
-      40% { transform: translate(2px, -1px); } 60% { transform: translate(-1px, -2px); }
-      80% { transform: translate(1px, 1px); } 100% { transform: translate(0); }
+      color: #000; border: none; border-radius: 8px;
+      font-size: 18px; font-weight: bold; cursor: pointer;
     }
   </style>
 </head>
 <body>
-  <div id="title-screen">
-    <div id="title-logo">🚀 銀河護衛</div>
-    <div id="title-subtitle">GALAXY DEFENSE</div>
-    <div id="title-rocket">🛸</div>
-    <div style="font-size: 16px; color: rgba(255,255,255,0.6); margin-top: 20px;">擊落外星飛碟 · 保衛地球</div>
-    <button id="start-button">點擊開始遊戲</button>
-  </div>
-
+  <!-- 遊戲 Canvas -->
   <canvas id="game"></canvas>
-  <div id="ui">擊中: <span id="score">0</span> / <span id="target">20</span></div>
-  <div id="level-indicator">第 <span id="level">1</span> 關</div>
-  <div id="hp-container"><div id="hp-bar"></div></div>
-  <div id="instruction">👆 拖曳畫面控制戰機移動（自動射擊）</div>
   
-  <div id="level-complete" class="overlay">
-    <h1 id="complete-msg">恭喜您通過第一關</h1>
-    <div id="victory-text" class="victory-msg"></div>
-    <div class="city-container">
-      <img id="city-img" class="city-image" src="" alt="城市風景">
-      <div id="city-error" class="city-error-msg">⚠️ 圖片載入失敗<br>請確認檔案名稱正確</div>
-    </div>
-    <button id="next-level-btn" class="btn">繼續下一關 →</button>
+  <!-- 章節過場畫面（動態載入） -->
+  <div id="chapter-screen" class="chapter-screen" style="display:none;">
+    <img id="chapter-image" src="" alt="Chapter">
+    <div class="tap-prompt">👆 點擊螢幕開始</div>
   </div>
   
-  <div id="gameover" class="overlay">
-    <h1>GAME OVER</h1>
-    <button id="restart-btn" class="btn btn-red">🔄 重新開始</button>
+  <!-- 章節結束影片 -->
+  <div id="ending-screen" class="ending-screen">
+    <video id="ending-video" src="" loop></video>
+    <button id="skip-ending" class="skip-btn">⏭️ 跳過</button>
   </div>
   
-  <div id="final-end" class="overlay">
-    <h1 style="color: #ffff00; font-size: 24px; line-height: 1.5;">🎮 遊戲結束<br>不要玩得太沉迷</h1>
-    <button id="quit-btn" class="btn">結束遊戲</button>
+  <!-- 排行榜畫面 -->
+  <div id="ranking-screen">
+    <canvas id="ranking-canvas" width="800" height="1200"></canvas>
+    <button id="close-ranking" class="close-btn">✅ 繼續遊戲</button>
   </div>
 
-  <script>
-    const canvas = document.getElementById('game');
-    const ctx = canvas.getContext('2d');
-    const scoreEl = document.getElementById('score');
-    const targetEl = document.getElementById('target');
-    const levelEl = document.getElementById('level');
-    const hpBar = document.getElementById('hp-bar');
-    const instEl = document.getElementById('instruction');
-    const levelCompleteEl = document.getElementById('level-complete');
-    const gameoverEl = document.getElementById('gameover');
-    const finalEndEl = document.getElementById('final-end');
-    const cityImg = document.getElementById('city-img');
-    const cityError = document.getElementById('city-error');
-    const completeMsg = document.getElementById('complete-msg');
-    const victoryText = document.getElementById('victory-text');
-    const nextLevelBtn = document.getElementById('next-level-btn');
-    const restartBtn = document.getElementById('restart-btn');
-    const quitBtn = document.getElementById('quit-btn');
-    const bgmEl = document.getElementById('bgm');
-    const cannonEl = document.getElementById('cannon-sfx');
-    const gameloseEl = document.getElementById('gamelose-sfx');
-    const nextLevelEl = document.getElementById('nextlevel-sfx');
-    const titleScreen = document.getElementById('title-screen');
-    const startButton = document.getElementById('start-button');
-
-    let audioCtx;
-    let gameStarted = false;
-    let assetsLoaded = 0;
-    const totalAssets = 4;
-
-    let ufoCanvases = { 1: null, 2: null, 3: null };
-    let jetCanvas = null;
+  <!-- 模組載入 -->
+  <script type="module">
+    // Firebase 初始化
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
     
-    let currentLevel = 1;
-    let score = 0;
-    let playerHP = 10;
-    const MAX_HP = 10;
-    let gameOver = false;
-    let gameEnded = false;
-    let isPaused = false;
+    const firebaseConfig = {
+      apiKey: "AIzaSyBISCj6wS2gJgQbCZ6quWWzoIOoTtJMne8",
+      authDomain: "galaxy-defense-ranking.firebaseapp.com",
+      databaseURL: "https://galaxy-defense-ranking-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "galaxy-defense-ranking",
+      storageBucket: "galaxy-defense-ranking.firebasestorage.app",
+      messagingSenderId: "304162275803",
+      appId: "1:304162275803:web:4bfb77544f3c1a43a167fe"
+    };
     
-    let playerX = 0;
-    let playerY = 0;
-    const playerW = 60, playerH = 50;
-    let touchStartX = 0, touchStartY = 0;
-    let isTouching = false;
-    let playerHitFlash = 0;
-
-    let missiles = [];
-    let ufoes = [];
-    let enemyMissiles = [];
-    let particles = [];
-    let ripples = [];
-    let stars = [];
-    let ufoTimer = 0;
-    let autoFireTimer = 0;
-
-    const levelConfig = {
-      1: { targets: 20, weapon: 'bomb', ufoSpeed: 1.0, bulletSpeed: 1.0, spawnRate: 75, fireRate: 95 },
-      2: { targets: 30, weapon: 'laser', ufoSpeed: 1.5, bulletSpeed: 2.0, spawnRate: 38, fireRate: 48 },
-      3: { targets: 50, weapon: 'laser', ufoSpeed: 2.0, bulletSpeed: 3.0, spawnRate: 25, fireRate: 32 }
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    
+    // 匯入遊戲模組
+    import { GameCore } from './js/core.js';
+    import { InputManager } from './js/input.js';
+    import { getLevelConfig } from './js/levels.js';
+    import { VFXManager } from './js/vfx.js';
+    import { UIManager } from './js/ui.js';
+    import { RankingManager } from './js/ranking.js';
+    
+    // 全域狀態
+    window.gameState = {
+      chapter: 1,
+      level: 1,
+      playerId: null,
+      uiManager: null,
+      rankingManager: null
     };
-
-    const victoryMessages = {
-      1: '恭喜您收復台北市',
-      2: '恭喜您收復台中市',
-      3: '恭喜您收復法國巴黎結束戰爭'
-    };
-
-    const cityImages = { 1: 'TAIPEI.png', 2: 'TAICHUNG.png', 3: 'PARIS.png' };
-
-    // 🔊 解鎖 SFX 音訊（不含 BGM）
-    function unlockSFX() {
-      [cannonEl, gameloseEl, nextLevelEl].forEach(el => {
-        el.muted = false;
-        el.play().then(() => {
-          el.pause();
-          el.currentTime = 0;
-        }).catch(() => {});
-      });
-    }
-
-    // 🔊 確保 AudioContext 就緒
-    function ensureAudioContext() {
-      if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      }
-      if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
-      }
-    }
-
-    // 🎵 播放 BGM（獨立函數）
-    function playBGM() {
-      bgmEl.volume = 0.35;
-      bgmEl.currentTime = 0;
-      bgmEl.play().catch(e => console.log('BGM 播放失敗:', e));
-    }
-
-    // ⏸️ 暫停 BGM
-    function pauseBGM() { 
-      bgmEl.pause(); 
-    }
-
-    function playCannon() {
-      cannonEl.currentTime = 0; 
-      cannonEl.volume = 0.4;
-      cannonEl.play().catch(() => {});
-    }
-
-    function playGameLoseAndWait() {
-      return new Promise((resolve) => {
-        gameloseEl.currentTime = 0; 
-        gameloseEl.volume = 0.65;
-        gameloseEl.onended = () => resolve();
-        gameloseEl.play().catch(() => resolve());
-      });
-    }
-
-    function speakTTS(text) {
-      if (!('speechSynthesis' in window)) return;
-      window.speechSynthesis.cancel();
-      setTimeout(() => {
-        const u = new SpeechSynthesisUtterance(text);
-        u.lang = 'zh-TW'; u.rate = 0.95; u.pitch = 1.05;
-        window.speechSynthesis.speak(u);
-      }, 100);
-    }
-
-    function removeWhiteBackground(src, callback) {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        const tempCanvas = document.createElement('canvas');
-        const tempCtx = tempCanvas.getContext('2d');
-        tempCanvas.width = img.width; tempCanvas.height = img.height;
-        tempCtx.drawImage(img, 0, 0);
-        const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-        const data = imageData.data;
-        for (let i = 0; i < data.length; i += 4) {
-          if (data[i] > 200 && data[i+1] > 200 && data[i+2] > 200) data[i + 3] = 0;
-        }
-        tempCtx.putImageData(imageData, 0, 0);
-        callback(tempCanvas);
-        assetsLoaded++;
-      };
-      img.onerror = () => { console.warn(`圖片載入失敗: ${src}`); callback(null); assetsLoaded++; };
-      img.src = src;
-    }
-
-    // 🚀 啟動遊戲（關鍵修正）
-    async function startGame() {
-      if (gameStarted) return;
-      gameStarted = true;
+    
+    // 初始化流程
+    async function init() {
+      // 1. 匿名登入取得玩家 ID
+      const user = await signInAnonymously(auth);
+      window.gameState.playerId = user.user.uid;
       
-      // 1. 立即解鎖 AudioContext
-      ensureAudioContext();
+      // 2. 初始化 UI 管理器（暱稱 + 頭像）
+      window.gameState.uiManager = new UIManager();
+      const hasPlayerData = await window.gameState.uiManager.loadFromStorage(window.gameState.playerId);
       
-      // 2. 解鎖 SFX
-      unlockSFX();
-      
-      // 3. 等待一小段時間確保音訊上下文完全解鎖
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // 4. 播放 BGM
-      playBGM();
-      
-      // 5. 隱藏標題畫面
-      titleScreen.style.opacity = 0;
-      setTimeout(() => { titleScreen.style.display = 'none'; }, 500);
-      
-      // 6. 啟動遊戲
-      resize();
-      updateHPUI();
-      loop();
-    }
-
-    startButton.addEventListener('click', startGame);
-    startButton.addEventListener('touchstart', (e) => { 
-      e.preventDefault(); 
-      startGame(); 
-    });
-
-    function shakeScreen() {
-      canvas.classList.add('shake');
-      setTimeout(() => canvas.classList.remove('shake'), 350);
-    }
-
-    function resize() {
-      const w = canvas.width = window.innerWidth;
-      const h = canvas.height = window.innerHeight;
-      playerX = w / 2;
-      playerY = h - 100;
-      stars = Array.from({length: 100}, () => ({
-        x: Math.random() * w, y: Math.random() * h, s: Math.random() * 2 + 0.5, b: Math.random() * 0.5 + 0.2
-      }));
-    }
-    window.addEventListener('resize', () => { if(gameStarted) resize(); });
-
-    function spawnUfo() {
-      const cfg = levelConfig[currentLevel];
-      ufoes.push({
-        x: Math.random() * (canvas.width - 80) + 40, y: -40,
-        vx: (Math.random() - 0.5) * 2.5 * cfg.ufoSpeed,
-        vy: (0.8 + Math.random() * 0.7) * cfg.ufoSpeed,
-        r: 26,
-        shootTimer: Math.floor(Math.random() * cfg.fireRate + 60)
-      });
-    }
-
-    function playerShoot() {
-      if (gameOver || gameEnded || isPaused) return;
-      const cfg = levelConfig[currentLevel];
-      if (cfg.weapon === 'bomb') {
-        missiles.push({ x: playerX, y: playerY - 20, speed: 11, r: 6, type: 'bomb' });
-      } else {
-        missiles.push({ x: playerX, y: playerY - 20, speed: 14, r: 4, type: 'laser' });
-      }
-    }
-
-    function spawnFirework(x, y) {
-      const colors = ['#ff1a1a', '#ff5500', '#ffaa00', '#ffff00', '#ffffff'];
-      for (let i = 0; i < 40; i++) {
-        const angle = Math.random() * Math.PI * 2;
-        const speed = Math.random() * 4 + 1.5;
-        particles.push({
-          x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-          life: 1, decay: 0.018 + Math.random() * 0.02,
-          color: colors[Math.floor(Math.random() * colors.length)], size: Math.random() * 3 + 1.5
-        });
-      }
-    }
-
-    function spawnPlayerHitEffect() {
-      for (let i = 0; i < 35; i++) {
-        const angle = Math.random() * Math.PI * 2;
-        const speed = Math.random() * 3.5 + 1;
-        particles.push({
-          x: playerX + (Math.random() - 0.5) * playerW,
-          y: playerY + (Math.random() - 0.5) * playerH,
-          vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-          life: 1, decay: 0.03 + Math.random() * 0.02,
-          color: ['#ff0000', '#ff4400', '#ff8800', '#ffaa00'][Math.floor(Math.random() * 4)],
-          size: Math.random() * 6 + 3
-        });
-      }
-    }
-
-    function updateHPUI() {
-      const pct = Math.max(0, (playerHP / MAX_HP) * 100);
-      hpBar.style.width = pct + '%';
-      hpBar.style.background = pct <= 30 ? '#ff3333' : pct <= 60 ? '#ffaa00' : '#33ff33';
-    }
-
-    function levelComplete() {
-      isPaused = true;
-      pauseBGM();
-      completeMsg.textContent = `🎉 恭喜您通過第${currentLevel}關`;
-      victoryText.textContent = victoryMessages[currentLevel];
-      const imgUrl = cityImages[currentLevel];
-      cityImg.src = imgUrl;
-      cityImg.classList.remove('hidden');
-      cityError.style.display = 'none';
-      cityImg.onload = () => console.log(`成功載入: ${imgUrl}`);
-      cityImg.onerror = () => { cityImg.classList.add('hidden'); cityError.style.display = 'block'; };
-      
-      nextLevelEl.currentTime = 0;
-      nextLevelEl.volume = 0.7;
-      nextLevelEl.play().catch(() => {});
-      
-      levelCompleteEl.style.display = 'flex';
-      speakTTS(`恭喜您通過第${currentLevel}關`);
-      nextLevelBtn.textContent = currentLevel === 3 ? '🏁 結束遊戲' : `🚀 繼續第${currentLevel + 1}關`;
-      nextLevelBtn.onclick = currentLevel === 3 ? showFinalEnd : nextLevel;
-    }
-
-    function nextLevel() {
-      currentLevel++;
-      score = 0; scoreEl.textContent = 0;
-      targetEl.textContent = levelConfig[currentLevel].targets;
-      levelEl.textContent = currentLevel;
-      playerHP = MAX_HP; updateHPUI();
-      clearGameObjects();
-      levelCompleteEl.style.display = 'none';
-      isPaused = false;
-      playBGM();
-    }
-
-    function showFinalEnd() {
-      levelCompleteEl.style.display = 'none';
-      finalEndEl.style.display = 'flex';
-      speakTTS('遊戲結束，不要玩得太沉迷');
-    }
-
-    async function triggerGameOver() {
-      if (gameOver) return;
-      gameOver = true;
-      isPaused = true;
-      pauseBGM();
-
-      for(let i=0; i<80; i++) {
-        const angle = Math.random() * Math.PI * 2;
-        const speed = Math.random() * 6 + 2;
-        particles.push({
-          x: playerX, y: playerY,
-          vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-          life: 1, decay: 0.012,
-          color: ['#ff0000','#ff8800','#ffff00','#ffffff'][Math.floor(Math.random()*4)],
-          size: Math.random() * 4 + 2
-        });
-      }
-      for(let i=0; i<4; i++) {
-        ripples.push({
-          x: playerX, y: playerY, r: 10, maxR: Math.max(canvas.width, canvas.height) * 0.7, 
-          speed: 7 + i * 4, alpha: 0.8 - i * 0.15, color: '#00ffff'
-        });
-      }
-
-      await playGameLoseAndWait();
-      gameoverEl.style.display = 'flex';
-      speakTTS('遊戲結束，血量歸零');
-    }
-
-    function clearGameObjects() {
-      missiles = []; ufoes = []; enemyMissiles = [];
-      particles = []; ripples = []; ufoTimer = 0; autoFireTimer = 0;
-    }
-
-    function resetToLevel1() {
-      if (animId) cancelAnimationFrame(animId);
-      currentLevel = 1; score = 0; playerHP = MAX_HP;
-      scoreEl.textContent = 0; targetEl.textContent = 20; levelEl.textContent = 1;
-      updateHPUI(); gameOver = false; gameEnded = false; isPaused = false;
-      playerX = canvas.width / 2; playerY = canvas.height - 100;
-      clearGameObjects();
-      gameoverEl.style.display = 'none'; finalEndEl.style.display = 'none';
-      instEl.style.opacity = 1;
-      playBGM();
-      loop();
-    }
-
-    function quitGame() {
-      gameEnded = true; isPaused = true;
-      finalEndEl.style.display = 'none';
-      ctx.fillStyle = '#0a0a2a'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = '#fff'; ctx.font = 'bold 26px Microsoft JhengHei'; ctx.textAlign = 'center';
-      ctx.fillText('感謝遊玩', canvas.width/2, canvas.height/2);
-      speakTTS('感謝遊玩');
-    }
-
-    function update() {
-      if (gameOver || gameEnded) { updateParticles(); return; }
-      if (isPaused) return;
-
-      if (score > 0) instEl.style.opacity = 0;
-      const cfg = levelConfig[currentLevel];
-      
-      ufoTimer++;
-      if (ufoTimer > cfg.spawnRate) { spawnUfo(); ufoTimer = 0; }
-
-      autoFireTimer++;
-      const fireInterval = cfg.weapon === 'laser' ? 12 : 35;
-      if (autoFireTimer >= fireInterval) { playerShoot(); autoFireTimer = 0; }
-
-      for (let i = missiles.length - 1; i >= 0; i--) {
-        let m = missiles[i]; m.y -= m.speed;
-        if (m.y < -10) missiles.splice(i, 1);
-      }
-
-      for (let i = ufoes.length - 1; i >= 0; i--) {
-        let u = ufoes[i]; 
-        u.x += u.vx; u.y += u.vy;
-        if (u.x < u.r || u.x > canvas.width - u.r) u.vx *= -1;
-        if (u.y > canvas.height + 50) ufoes.splice(i, 1);
-
-        u.shootTimer--;
-        if (u.shootTimer <= 0) {
-          let bombType = 'cyan';
-          let bombR = 5;
-          if (currentLevel === 2) { bombType = 'red'; bombR = 7; }
-          else if (currentLevel === 3) { bombType = 'dual_giant'; bombR = 12; }
-          
-          enemyMissiles.push({ 
-            x: u.x, y: u.y + u.r, 
-            speed: (4 + Math.random() * 2) * cfg.bulletSpeed, 
-            r: bombR, type: bombType 
+      if (!hasPlayerData) {
+        // 首次遊戲：顯示暱稱設定
+        await new Promise(resolve => {
+          window.gameState.uiManager.showNicknameModal((data) => {
+            window.gameState.uiManager.saveToStorage(window.gameState.playerId);
+            resolve();
           });
-          u.shootTimer = Math.floor(Math.random() * cfg.fireRate + 60);
-        }
-      }
-
-      for (let i = enemyMissiles.length - 1; i >= 0; i--) {
-        let m = enemyMissiles[i]; m.y += m.speed;
-        if (m.y > canvas.height + 10) { enemyMissiles.splice(i, 1); continue; }
-        let dx = playerX - m.x, dy = playerY - m.y;
-        if (Math.sqrt(dx*dx + dy*dy) < playerW/2 + m.r) {
-          enemyMissiles.splice(i, 1);
-          playerHP--; updateHPUI();
-          
-          if (navigator.vibrate) navigator.vibrate(200);
-          shakeScreen();
-          playerHitFlash = 18;
-          spawnPlayerHitEffect();
-          
-          if (playerHP <= 0) triggerGameOver();
-          break;
-        }
-      }
-
-      for (let i = missiles.length - 1; i >= 0; i--) {
-        let m = missiles[i];
-        for (let j = ufoes.length - 1; j >= 0; j--) {
-          let u = ufoes[j];
-          if (Math.hypot(m.x - u.x, m.y - u.y) < m.r + u.r * 0.7) {
-            spawnFirework(u.x, u.y);
-            missiles.splice(i, 1); ufoes.splice(j, 1);
-            score++; scoreEl.textContent = score;
-            if (score >= cfg.targets) levelComplete();
-            playCannon();
-            break;
-          }
-        }
-      }
-
-      for (let u of ufoes) {
-        if (Math.hypot(playerX - u.x, playerY - u.y) < playerW/2 + u.r * 0.6) {
-          triggerGameOver(); break;
-        }
+        });
       }
       
-      if (playerHitFlash > 0) playerHitFlash--;
-      updateParticles();
+      // 3. 初始化排行榜管理器
+      window.gameState.rankingManager = new RankingManager(firebaseConfig, window.gameState.playerId);
+      
+      // 4. 啟動遊戲核心
+      const canvas = document.getElementById('game');
+      const game = new GameCore(canvas, {
+        onChapterStart: showChapterScreen,
+        onChapterEnd: showEndingVideo,
+        onGameEnd: showRanking
+      });
+      
+      game.start();
     }
-
-    function updateParticles() {
-      for (let i = particles.length - 1; i >= 0; i--) {
-        let p = particles[i]; p.x += p.vx; p.y += p.vy; p.vy += 0.06; p.life -= p.decay;
-        if (p.life <= 0) particles.splice(i, 1);
-      }
-      for (let i = ripples.length - 1; i >= 0; i--) {
-        let rp = ripples[i]; rp.r += rp.speed; rp.alpha -= 0.01;
-        if (rp.alpha <= 0) ripples.splice(i, 1);
-      }
-    }
-
-    function draw() {
-      ctx.fillStyle = '#0a0a2a'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-      for (let s of stars) {
-        ctx.fillStyle = `rgba(255,255,255,${s.b})`;
-        ctx.beginPath(); ctx.arc(s.x, s.y, s.s, 0, Math.PI*2); ctx.fill();
-      }
-
-      const currentUfo = ufoCanvases[currentLevel];
-      for (let u of ufoes) {
-        if (currentUfo) {
-          ctx.drawImage(currentUfo, u.x - u.r*1.4, u.y - u.r*0.8, u.r*2.8, u.r*1.6);
-        } else {
-          ctx.fillStyle = '#00e5ff'; ctx.beginPath(); ctx.ellipse(u.x, u.y+5, u.r*1.4, u.r*0.5, 0, 0, Math.PI*2); ctx.fill();
-        }
-      }
-
-      if (!gameOver && !gameEnded) {
-        if (playerHitFlash > 0) {
-          const flashAlpha = playerHitFlash / 18;
-          ctx.save();
-          ctx.shadowBlur = 35 + Math.random() * 25;
-          ctx.shadowColor = `rgba(255, 20, 0, ${flashAlpha})`;
-          ctx.fillStyle = `rgba(255, 80, 0, ${flashAlpha * 0.6})`;
-          ctx.beginPath();
-          ctx.arc(playerX, playerY, playerW * 1.1, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.restore();
-        }
-        
-        if (jetCanvas) {
-          ctx.drawImage(jetCanvas, playerX - playerW*0.55, playerY - playerH*0.85, playerW*1.1, playerH*1.5);
-        } else {
-          ctx.fillStyle = '#444'; ctx.beginPath();
-          ctx.moveTo(playerX, playerY - playerH/2);
-          ctx.lineTo(playerX + playerW/2, playerY + playerH/2);
-          ctx.lineTo(playerX - playerW/2, playerY + playerH/2); ctx.fill();
-          ctx.fillStyle = '#ff2222'; ctx.fillRect(playerX-4, playerY-playerH/2-15, 8, 15);
-        }
-      }
-
-      for (let m of missiles) {
-        ctx.fillStyle = m.type === 'bomb' ? '#ff0000' : '#00ff00';
-        ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = m.type === 'bomb' ? 'rgba(255,50,0,0.5)' : 'rgba(0,255,0,0.5)';
-        ctx.fillRect(m.x-2, m.y, 4, m.type === 'bomb' ? 10 : 14);
-      }
-
-      for (let m of enemyMissiles) {
-        if (m.type === 'red') {
-          ctx.fillStyle = '#ff1111'; ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI*2); ctx.fill();
-          ctx.fillStyle = 'rgba(255, 0, 0, 0.35)'; ctx.beginPath(); ctx.arc(m.x, m.y, m.r + 4, 0, Math.PI*2); ctx.fill();
-        } else if (m.type === 'dual_giant') {
-          ctx.fillStyle = '#0044cc'; ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI*2); ctx.fill();
-          ctx.fillStyle = '#ff2200'; ctx.beginPath(); ctx.arc(m.x, m.y, m.r * 0.65, 0, Math.PI*2); ctx.fill();
-          ctx.shadowBlur = 15; ctx.shadowColor = '#ff0000';
-          ctx.fillStyle = '#ffaa00'; ctx.beginPath(); ctx.arc(m.x, m.y, m.r * 0.25, 0, Math.PI*2); ctx.fill();
-          ctx.shadowBlur = 0;
-        } else {
-          ctx.fillStyle = '#00ffff'; ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI*2); ctx.fill();
-        }
-      }
-
-      ctx.lineWidth = 2;
-      for (let rp of ripples) {
-        ctx.beginPath(); ctx.arc(rp.x, rp.y, rp.r, 0, Math.PI*2);
-        ctx.strokeStyle = `rgba(0, 255, 255, ${rp.alpha})`;
-        ctx.shadowBlur = 10; ctx.shadowColor = '#00ffff';
-        ctx.stroke(); ctx.shadowBlur = 0;
-      }
-
-      for (let p of particles) {
-        ctx.globalAlpha = p.life; ctx.fillStyle = p.color;
-        ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
-      }
-      ctx.globalAlpha = 1;
-    }
-
-    let animId;
-    function loop() {
-      update(); draw();
-      animId = requestAnimationFrame(loop);
-    }
-
-    canvas.addEventListener('touchstart', e => {
-      e.preventDefault();
-      isTouching = true;
-      touchStartX = e.touches[0].clientX;
-      touchStartY = e.touches[0].clientY;
-    }, {passive: false});
-
-    canvas.addEventListener('touchmove', e => {
-      e.preventDefault();
-      if (!isTouching || isPaused || gameOver) return;
-      const touchX = e.touches[0].clientX;
-      const touchY = e.touches[0].clientY;
-      playerX += (touchX - touchStartX) * 1.2;
-      playerY += (touchY - touchStartY) * 1.2;
-      playerX = Math.max(playerW/2, Math.min(canvas.width - playerW/2, playerX));
-      playerY = Math.max(canvas.height * 0.5, Math.min(canvas.height - 30, playerY));
-      touchStartX = touchX;
-      touchStartY = touchY;
-    }, {passive: false});
-
-    canvas.addEventListener('touchend', () => { isTouching = false; });
-
-    let mouseDown = false;
-    canvas.addEventListener('mousedown', e => { mouseDown = true; touchStartX = e.clientX; touchStartY = e.clientY; });
-    canvas.addEventListener('mousemove', e => {
-      if (!mouseDown || isPaused) return;
-      playerX += (e.clientX - touchStartX) * 1.2;
-      playerY += (e.clientY - touchStartY) * 1.2;
-      playerX = Math.max(playerW/2, Math.min(canvas.width - playerW/2, playerX));
-      playerY = Math.max(canvas.height * 0.5, Math.min(canvas.height - 30, playerY));
-      touchStartX = e.clientX; touchStartY = e.clientY;
-    });
-    canvas.addEventListener('mouseup', () => { mouseDown = false; });
-
-    restartBtn.addEventListener('click', resetToLevel1);
-    restartBtn.addEventListener('touchstart', e => { e.preventDefault(); resetToLevel1(); });
-    quitBtn.addEventListener('click', quitGame);
-    quitBtn.addEventListener('touchstart', e => { e.preventDefault(); quitGame(); });
-
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').catch(() => {});
+    
+    // 顯示章節起始畫面
+    async function showChapterScreen(chapter) {
+      const screen = document.getElementById('chapter-screen');
+      const img = document.getElementById('chapter-image');
+      
+      img.src = `assets/images/CHAPTER-0${chapter}.png`;
+      screen.style.display = 'flex';
+      
+      // 等待點擊
+      await new Promise(resolve => {
+        const handler = () => {
+          screen.removeEventListener('click', handler);
+          screen.removeEventListener('touchstart', handler);
+          screen.style.display = 'none';
+          resolve();
+        };
+        screen.addEventListener('click', handler);
+        screen.addEventListener('touchstart', handler, { passive: true });
       });
     }
-
-    window.addEventListener('load', () => {
-      removeWhiteBackground('UFO.png', (r) => { ufoCanvases[1] = r; });
-      removeWhiteBackground('UFO-2.png', (r) => { ufoCanvases[2] = r; });
-      removeWhiteBackground('UFO-3.png', (r) => { ufoCanvases[3] = r; });
-      removeWhiteBackground('JET.png', (r) => { jetCanvas = r; });
-    });
+    
+    // 顯示章節結束影片
+    async function showEndingVideo(chapter) {
+      const screen = document.getElementById('ending-screen');
+      const video = document.getElementById('ending-video');
+      const skipBtn = document.getElementById('skip-ending');
+      
+      video.src = `assets/images/CHAPTER-0${chapter}-ENDING.mp4`;
+      screen.style.display = 'flex';
+      
+      // iOS 相容：點擊播放
+      const playVideo = async () => {
+        try {
+          await video.play();
+          // 3 秒後顯示跳過按鈕
+          setTimeout(() => skipBtn.classList.add('show'), 3000);
+        } catch (e) {
+          console.warn('Video autoplay failed:', e);
+        }
+      };
+      
+      screen.addEventListener('click', playVideo, { once: true });
+      screen.addEventListener('touchstart', playVideo, { once: true, passive: true });
+      
+      // 跳過或影片結束
+      const endHandler = () => {
+        screen.style.display = 'none';
+        video.pause();
+        skipBtn.classList.remove('show');
+      };
+      
+      skipBtn.addEventListener('click', endHandler);
+      video.addEventListener('ended', endHandler);
+    }
+    
+    // 顯示排行榜
+    async function showRanking() {
+      const screen = document.getElementById('ranking-screen');
+      const canvas = document.getElementById('ranking-canvas');
+      const ctx = canvas.getContext('2d');
+      
+      screen.style.display = 'flex';
+      
+      // 載入模板圖片
+      const templateImg = new Image();
+      templateImg.src = 'assets/images/GLOBAL-RANKING-01.png';
+      
+      await new Promise(resolve => {
+        templateImg.onload = resolve;
+      });
+      
+      // 渲染排行榜
+      const rankingImg = await window.gameState.rankingManager.renderToTemplate(canvas, templateImg);
+      
+      // 顯示關閉按鈕
+      document.getElementById('close-ranking').onclick = () => {
+        screen.style.display = 'none';
+        // 可在此導回首頁或結束遊戲
+      };
+    }
+    
+    // 啟動
+    init();
   </script>
 </body>
 </html>
