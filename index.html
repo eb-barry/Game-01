@@ -14,25 +14,12 @@
     * { margin:0; padding:0; box-sizing:border-box; }
     body { overflow:hidden; background:#0a0a2a; touch-action:none; user-select:none; -webkit-user-select:none; font-family:"Microsoft JhengHei",sans-serif; }
     canvas { display:none; } canvas.active { display:block; }
-    
-    .overlay { 
-      position:fixed; top:0; left:0; width:100%; height:100%; 
-      background:rgba(5,5,20,0.95); display:none; flex-direction:column; 
-      justify-content:center; align-items:center; z-index:5000; 
-      color:#fff; text-align:center; padding:20px; 
-    }
+    .overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(5,5,20,0.95); display:none; flex-direction:column; justify-content:center; align-items:center; z-index:5000; color:#fff; text-align:center; padding:20px; }
     .overlay.active { display:flex; }
     .overlay img, .overlay video { max-width:90%; max-height:70vh; object-fit:contain; margin-bottom:20px; border-radius:12px; }
-    
-    .btn { 
-      padding:14px 36px; font-size:18px; font-weight:bold; 
-      background:linear-gradient(135deg,#33ff33,#00aa00); color:#000; 
-      border:none; border-radius:10px; cursor:pointer; 
-      box-shadow:0 4px 12px rgba(51,255,51,0.4); margin:10px; 
-    }
+    .btn { padding:14px 36px; font-size:18px; font-weight:bold; background:linear-gradient(135deg,#33ff33,#00aa00); color:#000; border:none; border-radius:10px; cursor:pointer; box-shadow:0 4px 12px rgba(51,255,51,0.4); margin:10px; }
     .btn:active { transform:scale(0.96); }
     .btn-red { background:linear-gradient(135deg,#ff4444,#cc0000); color:#fff; }
-    
     #ui { position:absolute; top:12px; left:12px; color:#fff; font-size:18px; text-shadow:0 2px 4px rgba(0,0,0,0.8); pointer-events:none; z-index:10; display:none; }
     #hp-container { position:absolute; top:12px; right:12px; width:140px; height:16px; background:#222; border-radius:8px; overflow:hidden; border:2px solid #444; z-index:10; display:none; }
     #hp-bar { height:100%; width:100%; background:#33ff33; transition:width 0.3s ease, background 0.3s ease; }
@@ -44,38 +31,32 @@
 <body>
   <canvas id="game"></canvas>
   
-  <!-- HUD -->
   <div id="ui">擊中: <span id="score">0</span> / <span id="target">5</span></div>
   <div id="level-indicator">第 <span id="level">1</span> 關</div>
   <div id="hp-container"><div id="hp-bar"></div></div>
   <div id="instruction">👆 拖曳畫面控制戰機移動（自動射擊）</div>
 
-  <!-- 標題畫面 -->
   <div id="title-screen" class="overlay active">
     <h1 style="font-size:32px; margin-bottom:10px; color:#33ff33;">🚀 銀河護衛</h1>
     <p style="color:rgba(255,255,255,0.7); margin-bottom:30px;">GALAXY DEFENSE</p>
     <button id="start-btn" class="btn">點擊開始遊戲</button>
   </div>
 
-  <!-- 關卡完成 -->
   <div id="level-complete-screen" class="overlay">
     <div id="level-complete-msg" style="font-size:24px; color:#33ff33; margin-bottom:20px;">🎉 恭喜您完成第一關</div>
     <button id="continue-btn" class="btn">🚀 繼續下一關</button>
   </div>
 
-  <!-- 章節過場圖片 -->
   <div id="chapter-screen" class="overlay">
     <img id="chapter-img" src="" alt="Chapter">
     <div style="font-size:18px; color:rgba(255,255,255,0.8); margin-top:10px;">👆 點擊螢幕繼續</div>
   </div>
 
-  <!-- 章節結束影片 -->
   <div id="ending-screen" class="overlay">
     <video id="ending-video" src="" playsinline volume="0.5"></video>
     <button id="skip-video" class="btn" style="display:none;">⏭️ 跳過</button>
   </div>
 
-  <!-- 遊戲結束 -->
   <div id="gameover-screen" class="overlay">
     <h1 id="gameover-title" style="color:#ff3333; font-size:34px; margin-bottom:20px;">💥 GAME OVER</h1>
     <p id="gameover-desc" style="margin-bottom:15px; color:rgba(255,255,255,0.8);"></p>
@@ -83,7 +64,6 @@
     <button id="quit-btn" class="btn btn-red">🚪 離開遊戲</button>
   </div>
 
-  <!-- 排行榜 -->
   <div id="ranking-screen" class="overlay">
     <h2 style="margin-bottom:15px; color:#33ff33;">🌍 全球排行榜</h2>
     <canvas id="ranking-canvas" width="720" height="1080"></canvas>
@@ -114,20 +94,10 @@
         const GAME = { auth: getAuth(), playerId: null, ui: new UIManager(), ranking: null, core: null };
         window.GAME = GAME;
 
-        // 🔓 全域互動解鎖音訊（備援）
-        const unlockAudioFallback = () => {
-          if(GAME.core?.audio) GAME.core.audio.unlock();
-          document.removeEventListener('click', unlockAudioFallback);
-          document.removeEventListener('touchstart', unlockAudioFallback);
-        };
-        document.addEventListener('click', unlockAudioFallback);
-        document.addEventListener('touchstart', unlockAudioFallback);
-
         async function boot() {
           console.log('🎮 啟動遊戲...');
           const cred = await signInAnonymously(GAME.auth);
           GAME.playerId = cred.user.uid;
-          console.log('✅ Firebase 登入:', GAME.playerId);
           
           const hasData = await GAME.ui.loadFromStorage(GAME.playerId);
           if (!hasData) await new Promise(res => GAME.ui.showNicknameModal(d => { GAME.ui.saveToStorage(GAME.playerId); res(); }));
@@ -148,22 +118,27 @@
             const el = document.getElementById(id); if(el) el.style.display = 'block';
           });
           
-          // ✅ 確保第一章第一關立即播放 BGM
-          await GAME.core.audio.unlock();
-          GAME.core.audio.playBGM();
+          // ✅ 第一章直接啟動
           GAME.core.startGame();
         }
 
-        // 📖 章節過場（返回 Promise 等待點擊）
+        // ✅ 修正：章節過場點擊時請求權限與播放音樂
         function showChapter(ch) {
           console.log('📖 章節過場:', ch);
           return new Promise(resolve => {
             const el = document.getElementById('chapter-screen');
             const img = document.getElementById('chapter-img');
-            if(!el || !img) { console.error('❌ chapter-screen 缺失'); resolve(); return; }
+            if(!el || !img) { resolve(); return; }
             img.src = `assets/images/CHAPTER-0${ch}.png`;
             el.classList.add('active');
-            const handler = () => {
+            
+            const handler = async () => {
+              // ✅ 關鍵：在點擊瞬間請求陀螺儀權限
+              if(GAME.core && ch >= 2) {
+                 await GAME.core.input.requestPermission();
+                 GAME.core.audio.playBGM(); // ✅ 確保音樂播放
+              }
+              
               el.classList.remove('active');
               el.removeEventListener('click', handler);
               el.removeEventListener('touchstart', handler);
@@ -175,15 +150,11 @@
         }
 
         function showLevelComplete(lv) {
-          console.log('🏆 關卡完成:', lv);
           const el = document.getElementById('level-complete-screen');
           const msg = document.getElementById('level-complete-msg');
           const btn = document.getElementById('continue-btn');
-          if(!el || !msg || !btn) { 
-            GAME.core.resumeGame(); GAME.core.nextLevel(); return; 
-          }
+          if(!el || !msg || !btn) { GAME.core.resumeGame(); GAME.core.nextLevel(); return; }
           msg.textContent = `🎉 恭喜您完成第 ${lv} 關`;
-          btn.textContent = '🚀 繼續下一關';
           btn.onclick = () => { 
             el.classList.remove('active'); 
             GAME.core.resumeGame();
@@ -192,44 +163,32 @@
           el.classList.add('active');
         }
 
-        // 🎬 章節影片與過場流程
         async function showEnding(ch) {
-          console.log('🎬 章節影片:', ch);
           const el = document.getElementById('ending-screen');
           const vid = document.getElementById('ending-video');
           const skip = document.getElementById('skip-video');
-          if(!el || !vid) { console.error('❌ ending-screen 缺失'); return; }
+          if(!el || !vid) return;
           
           vid.src = `assets/images/CHAPTER-0${ch}-ENDING.mp4`;
           el.classList.add('active');
           
-          const play = async () => { 
-            try { await vid.play(); if(skip) setTimeout(()=>skip.style.display='block', 3000); } 
-            catch(e){ console.warn('影片播放失敗:', e); } 
-          };
+          const play = async () => { try { await vid.play(); if(skip) setTimeout(()=>skip.style.display='block', 3000); } catch(e){} };
           el.addEventListener('click', play, {once:true});
           el.addEventListener('touchstart', play, {once:true, passive:true});
           
-          // ✅ 結束序列：等影片結束/跳過 → 顯示下一章圖片 → 等點擊 → 開始遊戲
-          const endSequence = async () => { 
-            el.classList.remove('active'); 
-            vid.pause(); 
-            if(skip) skip.style.display='none'; 
-            
+          const end = async () => { 
+            el.classList.remove('active'); vid.pause(); if(skip) skip.style.display='none'; 
             if (ch < 3) {
-              await showChapter(ch + 1); // ⏳ 暫停等待使用者點擊 CHAPTER-0X.png
+              await showChapter(ch + 1); // 等待使用者點擊
               GAME.core.startNextChapter(ch + 1);
             } else {
               showRanking();
             }
           };
-          
-          if(skip) skip.onclick = endSequence; 
-          vid.onended = endSequence;
+          if(skip) skip.onclick = end; vid.onended = end;
         }
 
         function showGameOver(reason) {
-          console.log('💀 遊戲結束:', reason);
           const el = document.getElementById('gameover-screen');
           if(!el) return;
           document.getElementById('gameover-title').textContent = reason === 'crater' ? '⚠️ 戰艦墜入隕石坑' : '💥 戰艦損毀';
@@ -240,7 +199,6 @@
           restartBtn.textContent = GAME.core.chapter === 2 ? '🔄 重試第二章第一關' : '🔄 重新開始';
           restartBtn.onclick = () => GAME.core.chapter === 2 ? GAME.core.restartChapter2() : location.reload();
           document.getElementById('quit-btn').onclick = () => GAME.callbacks.onQuit();
-          
           setTimeout(() => { el.classList.remove('active'); showRanking(); }, 4000);
         }
 
@@ -252,14 +210,10 @@
             const ctx = canvas?.getContext('2d');
             if(!ctx) throw new Error('Canvas context not found');
             ctx.fillStyle = '#0a0a2a'; ctx.fillRect(0,0,720,1080);
-            
-            const img = new Image(); img.crossOrigin = "anonymous";
-            img.src = 'assets/images/GLOBAL-RANKING-01.png';
+            const img = new Image(); img.crossOrigin = "anonymous"; img.src = 'assets/images/GLOBAL-RANKING-01.png';
             await new Promise(r => { img.onload = r; img.onerror = r; });
             if(img.complete && img.naturalWidth > 0) ctx.drawImage(img, 0, 0, 720, 1080);
-            
             const data = await GAME.ranking.getLeaderboard();
-            console.log('📊 排行榜:', data);
             ctx.font = 'bold 20px "Microsoft JhengHei"'; ctx.textAlign = 'left'; ctx.fillStyle = '#fff';
             const startY = 150, rowH = 40;
             data.top30?.forEach((p, i) => {
@@ -276,13 +230,11 @@
             }
             const closeBtn = document.getElementById('close-ranking');
             if(closeBtn) closeBtn.onclick = () => { el.classList.remove('active'); location.reload(); };
-          } catch(e) { console.error('📊 排行榜渲染失敗:', e); }
+          } catch(e) { console.error('Ranking failed:', e); }
         }
 
-        const startBtn = document.getElementById('start-btn');
-        if(startBtn) startBtn.addEventListener('click', boot);
-        else console.error('❌ 找不到開始按鈕');
-      } catch(e) { console.error('🔥 初始化崩潰:', e); alert('遊戲載入失敗，請檢查 Console'); }
+        document.getElementById('start-btn').addEventListener('click', boot);
+      } catch(e) { console.error('🔥 初始化崩潰:', e); }
     });
   </script>
 </body>
