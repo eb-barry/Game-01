@@ -2,65 +2,59 @@
 export class InputManager {
   constructor(canvas) {
     this.canvas = canvas;
-    this.mode = 'touch'; // 'touch' | 'gyro'
-    this.pos = { x: 0, y: 0 };
-    this.target = { x: 0, y: 0 };
     this.gyro = { beta: 0, gamma: 0 };
-    this.gyroEnabled = false;
+    this.isGyroReady = false;
     this.smoothing = 0.15;
     this._bind();
   }
 
-  async enableGyro() {
-    if (typeof DeviceOrientationEvent?.requestPermission === 'function') {
-      const perm = await DeviceOrientationEvent.requestPermission();
-      this.gyroEnabled = perm === 'granted';
+  // ✅ 新增：安全請求陀螺儀權限
+  async requestPermission() {
+    console.log("📡 請求陀螺儀權限...");
+    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+      try {
+        const permission = await DeviceOrientationEvent.requestPermission();
+        if (permission === 'granted') {
+          this.isGyroReady = true;
+          console.log("✅ 陀螺儀權限已獲取");
+        } else {
+          console.warn("⚠️ 使用者拒絕陀螺儀權限");
+        }
+      } catch (error) {
+        console.error("❌ 陀螺儀權限請求錯誤:", error);
+      }
     } else {
-      this.gyroEnabled = true;
+      // 非 iOS 13+ 或 Android
+      this.isGyroReady = true;
+      console.log("✅ 非 iOS 13+ 裝置，自動啟用陀螺儀");
     }
-    return this.gyroEnabled;
-  }
-
-  setMode(mode) {
-    this.mode = mode;
-    if (mode === 'gyro' && !this.gyroEnabled) this.enableGyro();
   }
 
   _bind() {
-    window.addEventListener('deviceorientation', e => {
-      if (this.mode !== 'gyro' || !this.gyroEnabled) return;
-      this.gyro.beta = this.gyro.beta * (1 - this.smoothing) + (e.beta || 0) * this.smoothing;
-      this.gyro.gamma = this.gyro.gamma * (1 - this.smoothing) + (e.gamma || 0) * this.smoothing;
-      
-      // 映射陀螺儀到位置
-      const w = this.canvas.width, h = this.canvas.height;
-      this.target.x += (this.gyro.gamma / 45) * 4; // 左右傾斜
-      this.target.y -= (this.gyro.beta / 90) * 5;  // 前後傾斜
-      this.target.x = Math.max(30, Math.min(w - 30, this.target.x));
-      this.target.y = Math.max(h * 0.2, Math.min(h - 50, this.target.y));
-    });
+    window.addEventListener('deviceorientation', (e) => this.handleOrientation(e));
+  }
 
-    const start = (x, y) => { if(this.mode==='touch') { this.target.x=x; this.target.y=y; } };
-    const move = (x, y) => {
-      if(this.mode==='touch') {
-        const dx = x - this.target.x, dy = y - this.target.y;
-        this.target.x += dx * 0.15;
-        this.target.y += dy * 0.15;
-        this.target.x = Math.max(30, Math.min(this.canvas.width-30, this.target.x));
-        this.target.y = Math.max(this.canvas.height*0.4, Math.min(this.canvas.height-30, this.target.y));
-      }
-    };
-    this.canvas.addEventListener('touchstart', e => { e.preventDefault(); start(e.touches[0].clientX, e.touches[0].clientY); }, {passive:false});
-    this.canvas.addEventListener('touchmove', e => { e.preventDefault(); move(e.touches[0].clientX, e.touches[0].clientY); }, {passive:false});
-    this.canvas.addEventListener('mousedown', e => start(e.clientX, e.clientY));
-    this.canvas.addEventListener('mousemove', e => move(e.clientX, e.clientY));
+  handleOrientation(e) {
+    // ✅ 若未獲得權限，直接返回，防止卡死
+    if (!this.isGyroReady) return;
+    
+    this.gyro.beta = this.gyro.beta * (1 - this.smoothing) + (e.beta || 0) * this.smoothing;
+    this.gyro.gamma = this.gyro.gamma * (1 - this.smoothing) + (e.gamma || 0) * this.smoothing;
   }
 
   update() {
-    this.pos.x += (this.target.x - this.pos.x) * 0.2;
-    this.pos.y += (this.target.y - this.pos.y) * 0.2;
-    return { ...this.pos };
-  }
+    // 簡單的映射邏輯
+    const w = this.canvas.width, h = this.canvas.height;
+    // 如果未就緒，回傳中心點，防止戰機消失
+    if (!this.isGyroReady) return { x: w / 2, y: h - 100 };
 
-  reset(x, y) { this.pos.x = this.target.x = x; this.pos.y = this.target.y = y; }
+    // 根據傾斜角度移動
+    const targetX = (w / 2) + (this.gyro.gamma * 4); 
+    const targetY = (h - 100) - (this.gyro.beta * 3);
+
+    return {
+      x: Math.max(30, Math.min(w - 30, targetX)),
+      y: Math.max(h * 0.2, Math.min(h - 50, targetY))
+    };
+  }
 }
