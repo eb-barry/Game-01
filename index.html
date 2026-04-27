@@ -187,7 +187,7 @@
 
   <!-- 🎥 過場影片 -->
   <div id="video-overlay" class="overlay">
-    <video id="chapter-video" style="max-width:100%; max-height:60vh;" playsinline muted></video>
+    <video id="chapter-video" style="max-width:100%; max-height:60vh;" playsinline></video>
     <button id="video-next-btn" class="btn">繼續下一關 →</button>
   </div>
 
@@ -261,6 +261,8 @@
     let stars = [];
     let ufoTimer = 0;
     let autoFireTimer = 0;
+    let isPaused = false;
+    const restartBtn = document.getElementById('restart-btn');
 
     const levelConfig = {
       1: { targets: 20, weapon: 'bomb', ufoSpeed: 1.0, bulletSpeed: 1.0, spawnRate: 75, fireRate: 95 },
@@ -294,6 +296,8 @@
       videoOverlay.style.display = 'flex';
 
       chapterVideo.currentTime = 0;
+      chapterVideo.muted = false;
+      chapterVideo.volume = 1.0;
       chapterVideo.play().catch(() => {});
 
       // 影片播完才顯示按鈕
@@ -413,12 +417,7 @@
     // 🚀 啟動遊戲（關鍵修正）
     async function startGame() {
       if (gameStarted) return;
-      gameStarted = true;
-      start-button.onclick = () => {
-       console.log('start clicked'); // 👈 debug用（很重要）
-       startGame();
-      };
-      
+      gameStarted = true;      
       // 1. 立即解鎖 AudioContext
       ensureAudioContext();
       
@@ -438,7 +437,7 @@
       // 6. 啟動遊戲
       resize();
       updateHPUI();
-      loop();
+      setTimeout(() => { loop(); }, 300);
       // 👇 新增：先顯示第一關
            setGameState('CHAPTER');
       showChapterStart(1);
@@ -523,7 +522,6 @@
 
     function levelComplete() {
       playChapterVideo(currentLevel);
-    }
       completeMsg.textContent = `🎉 恭喜您通過第${currentLevel}關`;
       victoryText.textContent = victoryMessages[currentLevel];
       const imgUrl = cityImages[currentLevel];
@@ -533,12 +531,7 @@
       cityImg.onload = () => console.log(`成功載入: ${imgUrl}`);
       cityImg.onerror = () => { cityImg.classList.add('hidden'); cityError.style.display = 'block'; };
       
-      nextLevelEl.currentTime = 0;
-      nextLevelEl.volume = 0.7;
-      nextLevelEl.play().catch(() => {});
-      
       levelCompleteEl.style.display = 'flex';
-      speakTTS(`恭喜您通過第${currentLevel}關`);
       nextLevelBtn.textContent = currentLevel === 3 ? '🏁 結束遊戲' : `🚀 繼續第${currentLevel + 1}關`;
       nextLevelBtn.onclick = currentLevel === 3 ? showFinalEnd : nextLevel;
     }
@@ -564,7 +557,6 @@
 
       gameOver = true;
       setGameState('GAMEOVER');
-        }
       for(let i=0; i<80; i++) {
         const angle = Math.random() * Math.PI * 2;
         const speed = Math.random() * 6 + 2;
@@ -602,8 +594,8 @@
       clearGameObjects();
       gameoverEl.style.display = 'none'; finalEndEl.style.display = 'none';
       instEl.style.opacity = 1;
-      playBGM();
       loop();
+      showChapterStart(1);
     }
 
     function quitGame() {
