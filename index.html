@@ -188,6 +188,7 @@
   <!-- 🎥 過場影片 -->
   <div id="video-overlay" class="overlay">
     <video id="chapter-video" style="max-width:100%; max-height:60vh;" playsinline></video>
+    <button id="video-play-btn" class="btn" style="margin-bottom:12px;">▶ 播放結關影片</button>
     <button id="video-next-btn" class="btn">繼續下一關 →</button>
   </div>
 
@@ -222,6 +223,7 @@
     const videoOverlay = document.getElementById('video-overlay');
     const chapterVideo = document.getElementById('chapter-video');
     const videoNextBtn = document.getElementById('video-next-btn');
+    const videoPlayBtn = document.getElementById('video-play-btn');
     const bgmEl = document.getElementById('bgm');
     const cannonEl = document.getElementById('cannon-sfx');
     const gameloseEl = document.getElementById('gamelose-sfx');
@@ -292,16 +294,24 @@
     function playChapterVideo(level) {
       setGameState('VIDEO');
 
-      chapterVideo.src = chapterVideos[level];
-      videoOverlay.style.display = 'flex';
+      // Hide city-image overlay immediately
+      levelCompleteEl.style.display = 'none';
 
+      // Show video overlay with a TAP-TO-PLAY button (required by iOS)
+      chapterVideo.src = chapterVideos[level];
       chapterVideo.currentTime = 0;
       chapterVideo.muted = false;
       chapterVideo.volume = 1.0;
-      chapterVideo.play().catch(() => {});
 
-      // 影片播完才顯示按鈕
       videoNextBtn.style.display = 'none';
+      videoPlayBtn.style.display = 'block';
+      videoOverlay.style.display = 'flex';
+
+      // User taps play button → iOS allows audio
+      videoPlayBtn.onclick = () => {
+        videoPlayBtn.style.display = 'none';
+        chapterVideo.play().catch(() => {});
+      };
 
       chapterVideo.onended = () => {
         videoNextBtn.style.display = 'block';
@@ -309,7 +319,8 @@
 
       videoNextBtn.onclick = () => {
         videoOverlay.style.display = 'none';
-
+        chapterVideo.pause();
+        chapterVideo.src = '';
         if (level === 3) {
           showFinalEnd();
         } else {
@@ -531,7 +542,7 @@
       cityImg.onload = () => console.log(`成功載入: ${imgUrl}`);
       cityImg.onerror = () => { cityImg.classList.add('hidden'); cityError.style.display = 'block'; };
       
-      levelCompleteEl.style.display = 'flex';
+      // levelCompleteEl hidden — video overlay takes over directly
       nextLevelBtn.textContent = currentLevel === 3 ? '🏁 結束遊戲' : `🚀 繼續第${currentLevel + 1}關`;
       nextLevelBtn.onclick = currentLevel === 3 ? showFinalEnd : nextLevel;
     }
