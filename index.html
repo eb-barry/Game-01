@@ -214,8 +214,7 @@
     const cityError = document.getElementById('city-error');
     const completeMsg = document.getElementById('complete-msg');
     const victoryText = document.getElementById('victory-text');
-    const nextLevelBtn = document.getElementById('next-level-btn');
-    const restartBtn = document.getElementById('restart-btn');
+    const nextLevelBtn = document.getElementById('next-level-btn');    
     const quitBtn = document.getElementById('quit-btn');
     const chapterStartEl = document.getElementById('chapter-start');
     const chapterImg = document.getElementById('chapter-img');
@@ -415,6 +414,10 @@
     async function startGame() {
       if (gameStarted) return;
       gameStarted = true;
+      start-button.onclick = () => {
+       console.log('start clicked'); // 👈 debug用（很重要）
+       startGame();
+      };
       
       // 1. 立即解鎖 AudioContext
       ensureAudioContext();
