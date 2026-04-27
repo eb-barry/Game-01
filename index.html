@@ -185,11 +185,22 @@
      <button id="chapter-start-btn" class="btn">點擊開始</button>
     </div>
 
-  <!-- 🎥 過場影片 -->
-  <div id="video-overlay" class="overlay">
-    <video id="chapter-video" style="max-width:100%; max-height:60vh;" playsinline></video>
-    <button id="video-play-btn" class="btn" style="margin-bottom:12px;">▶ 播放結關影片</button>
-    <button id="video-next-btn" class="btn">繼續下一關 →</button>
+  <!-- 🎥 過場影片 (fullscreen, above everything) -->
+  <div id="video-overlay" style="
+    display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+    background:#000; z-index:99999;
+    flex-direction:column; justify-content:center; align-items:center;">
+    <video id="chapter-video"
+      style="width:100%; height:100%; object-fit:contain;"
+      playsinline webkit-playsinline x5-playsinline
+      preload="auto">
+    </video>
+    <div id="video-ui" style="
+      position:absolute; bottom:40px; left:0; width:100%;
+      display:flex; flex-direction:column; align-items:center; gap:16px;">
+      <button id="video-play-btn" class="btn" style="font-size:22px; padding:18px 50px;">▶ 播放結關影片</button>
+      <button id="video-next-btn" class="btn" style="display:none;">繼續下一關 →</button>
+    </div>
   </div>
 
   <!-- 🏁 最終結束畫面 -->
@@ -293,34 +304,56 @@
 
     function playChapterVideo(level) {
       setGameState('VIDEO');
-
-      // Hide city-image overlay immediately
       levelCompleteEl.style.display = 'none';
 
-      // Show video overlay with a TAP-TO-PLAY button (required by iOS)
-      chapterVideo.src = chapterVideos[level];
-      chapterVideo.currentTime = 0;
-      chapterVideo.muted = false;
-      chapterVideo.volume = 1.0;
+      // Reset video element completely (critical for iOS re-use)
+      chapterVideo.pause();
+      chapterVideo.removeAttribute('src');
+      chapterVideo.load();
 
-      videoNextBtn.style.display = 'none';
       videoPlayBtn.style.display = 'block';
+      videoNextBtn.style.display = 'none';
       videoOverlay.style.display = 'flex';
 
-      // User taps play button → iOS allows audio
+      // iOS/Android: user must tap to start video with audio
       videoPlayBtn.onclick = () => {
         videoPlayBtn.style.display = 'none';
-        chapterVideo.play().catch(() => {});
+
+        // Set src only at tap time — maximises iOS compatibility
+        chapterVideo.src = chapterVideos[level];
+        chapterVideo.muted = false;
+        chapterVideo.volume = 1.0;
+        chapterVideo.load();
+
+        const playPromise = chapterVideo.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(() => {
+            // Fallback: muted play if audio blocked
+            chapterVideo.muted = true;
+            chapterVideo.play().catch(() => {});
+          });
+        }
       };
 
       chapterVideo.onended = () => {
         videoNextBtn.style.display = 'block';
       };
 
+      // Safety: also show button after 30s in case onended doesn't fire
+      chapterVideo.ontimeupdate = () => {
+        if (chapterVideo.duration > 0 &&
+            chapterVideo.currentTime >= chapterVideo.duration - 0.5) {
+          videoNextBtn.style.display = 'block';
+        }
+      };
+
       videoNextBtn.onclick = () => {
-        videoOverlay.style.display = 'none';
         chapterVideo.pause();
-        chapterVideo.src = '';
+        chapterVideo.ontimeupdate = null;
+        chapterVideo.onended = null;
+        chapterVideo.removeAttribute('src');
+        chapterVideo.load();
+        videoOverlay.style.display = 'none';
         if (level === 3) {
           showFinalEnd();
         } else {
