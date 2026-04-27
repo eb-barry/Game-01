@@ -180,19 +180,22 @@
     <button id="restart-btn" class="btn btn-red">🔄 重新開始</button>
   </div>
   
-  <div id="final-end" class="overlay">
-    <!-- 🎬 關卡開始畫面 -->
-    <div id="chapter-start" class="overlay">
-      <img id="chapter-img" src="" style="max-width:90%; max-height:60vh; border-radius:12px;">
-      <button id="chapter-start-btn" class="btn">點擊開始</button>
+  <div id="chapter-start" class="overlay">
+     <img id="chapter-img" src="" style="max-width:90%; max-height:60vh; border-radius:12px;">
+     <button id="chapter-start-btn" class="btn">點擊開始</button>
     </div>
 
-    <!-- 🎥 過場影片 -->
-    <div id="video-overlay" class="overlay">
-        <video id="chapter-video" style="max-width:100%; max-height:60vh;" playsinline muted></video>
-        <button id="video-next-btn" class="btn">繼續下一關 →</button>
-    </div>
-    <h1 style="color: #ffff00; font-size: 24px; line-height: 1.5;">🎮 遊戲結束<br>不要玩得太沉迷</h1>
+  <!-- 🎥 過場影片 -->
+  <div id="video-overlay" class="overlay">
+    <video id="chapter-video" style="max-width:100%; max-height:60vh;" playsinline muted></video>
+    <button id="video-next-btn" class="btn">繼續下一關 →</button>
+  </div>
+
+  <!-- 🏁 最終結束畫面 -->
+  <div id="final-end" class="overlay">
+    <h1 style="color: #ffff00; font-size: 24px; line-height: 1.5;">
+    🎮 遊戲結束<br>不要玩得太沉迷
+    </h1>
     <button id="quit-btn" class="btn">結束遊戲</button>
   </div>
 
@@ -240,8 +243,9 @@
     let playerHP = 10;
     const MAX_HP = 10;
     let gameOver = false;
-    let gameEnded = false;
-    let isPaused = false;
+    let gameEnded = false;    
+       let gameState = 'TITLE'; 
+       // TITLE | CHAPTER | PLAYING | VIDEO | GAMEOVER | FINAL
     
     let playerX = 0;
     let playerY = 0;
@@ -285,8 +289,7 @@
     };
 
     function playChapterVideo(level) {
-      isPaused = true;
-      pauseBGM();
+      setGameState('VIDEO');
 
       chapterVideo.src = chapterVideos[level];
       videoOverlay.style.display = 'flex';
@@ -312,6 +315,15 @@
       };
     }
     // 🔊 解鎖 SFX 音訊（不含 BGM）
+    function setGameState(state) {
+      gameState = state;
+
+      if (state === 'PLAYING') {
+          playBGM();
+      } else {
+          pauseBGM();
+      }
+    }
     function unlockSFX() {
       [cannonEl, gameloseEl, nextLevelEl].forEach(el => {
         el.muted = false;
@@ -369,16 +381,13 @@
       }, 100);
     }
     function showChapterStart(level) {
-    isPaused = true;
-    pauseBGM();
-
+      setGameState('CHAPTER');
     chapterImg.src = chapterImages[level];
     chapterStartEl.style.display = 'flex';
 
     chapterStartBtn.onclick = () => {
       chapterStartEl.style.display = 'none';
-      isPaused = false;
-      playBGM();
+      setGameState('PLAYING');
       };
     }
     function removeWhiteBackground(src, callback) {
@@ -428,6 +437,7 @@
       updateHPUI();
       loop();
       // 👇 新增：先顯示第一關
+           setGameState('CHAPTER');
       showChapterStart(1);
     }
 
@@ -509,8 +519,8 @@
     }
 
     function levelComplete() {
-      isPaused = true;
-      pauseBGM();
+      playChapterVideo(currentLevel);
+    }
       completeMsg.textContent = `🎉 恭喜您通過第${currentLevel}關`;
       victoryText.textContent = victoryMessages[currentLevel];
       const imgUrl = cityImages[currentLevel];
@@ -537,25 +547,21 @@
       levelEl.textContent = currentLevel;
       playerHP = MAX_HP; updateHPUI();
       clearGameObjects();
-      levelCompleteEl.style.display = 'none';
-      isPaused = false;
-      playBGM();
-      showChapterStart(currentLevel);
+      levelCompleteEl.style.display = 'none';      
+      showChapterStart(currentLevel);           
     }
 
     function showFinalEnd() {
-      // levelCompleteEl.style.display = 'none';
-      // finalEndEl.style.display = 'flex';
-      // speakTTS('遊戲結束，不要玩得太沉迷');
-      playChapterVideo(currentLevel);
+      setGameState('FINAL');
+      finalEndEl.style.display = 'flex';
     }
 
     async function triggerGameOver() {
       if (gameOver) return;
-      gameOver = true;
-      isPaused = true;
-      pauseBGM();
 
+      gameOver = true;
+      setGameState('GAMEOVER');
+        }
       for(let i=0; i<80; i++) {
         const angle = Math.random() * Math.PI * 2;
         const speed = Math.random() * 6 + 2;
@@ -608,7 +614,11 @@
 
     function update() {
       if (gameOver || gameEnded) { updateParticles(); return; }
-      if (isPaused) return;
+
+      if (gameState !== 'PLAYING') {
+        updateParticles();
+        return;
+           }
 
       if (score > 0) instEl.style.opacity = 0;
       const cfg = levelConfig[currentLevel];
