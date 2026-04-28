@@ -297,32 +297,32 @@
     };
 
     const chapterVideos = {
-      1: 'CHAPTER-01-ENDING.MP4',
-      2: 'CHAPTER-02-ENDING.MP4',
-      3: 'CHAPTER-03-ENDING.MP4'
+      1: 'CHAPTER-01-ENDING.mp4',
+      2: 'CHAPTER-02-ENDING.mp4',
+      3: 'CHAPTER-03-ENDING.mp4'
     };
 
     function playChapterVideo(level) {
       setGameState('VIDEO');
-
       const videoUI = document.getElementById('video-ui');
 
-      // Show black background overlay and UI bar
+      // Reset cleanly
+      chapterVideo.pause();
+      chapterVideo.onended = null;
+      chapterVideo.onerror = null;
+      chapterVideo.oncanplay = null;
+      chapterVideo.removeAttribute('src');
+      chapterVideo.load();
+
+      // Pre-load src NOW (before tap) so iOS has time to buffer
+      chapterVideo.src = chapterVideos[level];
+      chapterVideo.muted = true;   // start muted so iOS allows preload
+      chapterVideo.load();
+
+      // Show UI
+      chapterVideo.style.display = 'block';
       videoOverlay.style.display = 'block';
       videoUI.style.display = 'flex';
-
-      // Show video element itself (it lives in body, never was display:none before)
-      chapterVideo.style.display = 'block';
-
-      // Clear any previous state
-      chapterVideo.pause();
-      chapterVideo.removeAttribute('src');
-      chapterVideo.onended = null;
-      chapterVideo.ontimeupdate = null;
-      chapterVideo.oncanplay = null;
-      chapterVideo.onerror = null;
-
-      // Show play button, hide next button
       videoPlayBtn.style.display = 'block';
       videoPlayBtn.disabled = false;
       videoNextBtn.style.display = 'none';
@@ -331,42 +331,45 @@
         videoNextBtn.style.display = 'block';
       }
 
+      chapterVideo.onended = showNextBtn;
+      chapterVideo.onerror = function() {
+        console.error('Video load error:', chapterVideos[level]);
+        showNextBtn();
+      };
+
       function doPlay() {
-        videoPlayBtn.style.display = 'none';
-        videoPlayBtn.disabled = true;
+        // Neutralise both handlers immediately to prevent double-fire
         videoPlayBtn.onclick = null;
         videoPlayBtn.ontouchend = null;
+        videoPlayBtn.style.display = 'none';
+        videoPlayBtn.disabled = true;
 
+        // Unmute and play — called directly inside tap, gesture chain intact
         chapterVideo.muted = false;
         chapterVideo.volume = 1.0;
-        chapterVideo.onended = showNextBtn;
-        chapterVideo.onerror = showNextBtn; // if video fails, still allow user to continue
-
-        // iOS: attach canplay BEFORE setting src
-        chapterVideo.oncanplay = function() {
-          chapterVideo.oncanplay = null;
-          chapterVideo.play().catch(() => {
+        const p = chapterVideo.play();
+        if (p !== undefined) {
+          p.catch(() => {
+            // If unmuted play blocked, fall back to muted
             chapterVideo.muted = true;
             chapterVideo.play().catch(showNextBtn);
           });
-        };
-
-        // Setting src last triggers iOS load pipeline
-        chapterVideo.src = chapterVideos[level];
+        }
       }
 
       function doNext() {
+        videoPlayBtn.onclick = null;
+        videoPlayBtn.ontouchend = null;
+        videoNextBtn.onclick = null;
+        videoNextBtn.ontouchend = null;
         chapterVideo.pause();
         chapterVideo.onended = null;
-        chapterVideo.ontimeupdate = null;
-        chapterVideo.oncanplay = null;
         chapterVideo.onerror = null;
         chapterVideo.removeAttribute('src');
+        chapterVideo.load();
         chapterVideo.style.display = 'none';
         videoOverlay.style.display = 'none';
         videoUI.style.display = 'none';
-        videoNextBtn.onclick = null;
-        videoNextBtn.ontouchend = null;
         if (level === 3) { showFinalEnd(); } else { nextLevel(); }
       }
 
