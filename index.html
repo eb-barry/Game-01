@@ -490,13 +490,11 @@
       titleScreen.style.opacity = 0;
       setTimeout(() => { titleScreen.style.display = 'none'; }, 500);
       
-      // 6. 啟動遊戲
+    // 6. 啟動遊戲
       resize();
       updateHPUI();
-      setTimeout(() => { loop(); }, 300);
-      // 👇 新增：先顯示第一關
-           setGameState('CHAPTER');
       showChapterStart(1);
+      setTimeout(() => { loop(); }, 300);  
     }
 
     startButton.addEventListener('click', startGame);
