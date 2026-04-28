@@ -180,10 +180,10 @@
     <button id="restart-btn" class="btn btn-red">🔄 重新開始</button>
   </div>
   
-  <div id="chapter-start" class="overlay">
+  <div id="chapter-start" class="overlay" style="position:fixed; z-index:9998;">
      <img id="chapter-img" src="" style="max-width:90%; max-height:60vh; border-radius:12px;">
-     <button id="chapter-start-btn" class="btn">點擊開始</button>
-    </div>
+     <button id="chapter-start-btn" class="btn" style="font-size:24px; padding:20px 60px;">點擊開始</button>
+  </div>
 
   <!-- 🎥 過場影片 (fullscreen, above everything) -->
   <div id="video-overlay" style="
@@ -347,32 +347,7 @@
       };
     }
 
-      chapterVideo.onended = () => {
-        videoNextBtn.style.display = 'block';
-      };
-
-      // Safety: also show button after 30s in case onended doesn't fire
-      chapterVideo.ontimeupdate = () => {
-        if (chapterVideo.duration > 0 &&
-            chapterVideo.currentTime >= chapterVideo.duration - 0.5) {
-          videoNextBtn.style.display = 'block';
-        }
-      };
-
-      videoNextBtn.onclick = () => {
-        chapterVideo.pause();
-        chapterVideo.ontimeupdate = null;
-        chapterVideo.onended = null;
-        chapterVideo.removeAttribute('src');
-        chapterVideo.load();
-        videoOverlay.style.display = 'none';
-        if (level === 3) {
-          showFinalEnd();
-        } else {
-          nextLevel();
-        }
-      };
-    }
+      
     // 🔊 解鎖 SFX 音訊（不含 BGM）
     function setGameState(state) {
       gameState = state;
@@ -440,13 +415,27 @@
       }, 100);
     }
     function showChapterStart(level) {
+      chapterImg.src = chapterImages[level];
+      chapterStartEl.style.display = 'flex';
+      chapterStartEl.style.position = 'fixed';
+      chapterStartEl.style.zIndex = '9998';
       setGameState('CHAPTER');
-    chapterImg.src = chapterImages[level];
-    chapterStartEl.style.display = 'flex';
 
-    chapterStartBtn.onclick = () => {
-      chapterStartEl.style.display = 'none';
-      setGameState('PLAYING');
+      chapterStartBtn.onclick = null;
+      chapterStartBtn.ontouchend = null;
+
+      chapterStartBtn.onclick = function() {
+        chapterStartEl.style.display = 'none';
+        chapterStartBtn.onclick = null;
+        chapterStartBtn.ontouchend = null;
+        setGameState('PLAYING');
+      };
+      chapterStartBtn.ontouchend = function(e) {
+        e.preventDefault();
+        chapterStartEl.style.display = 'none';
+        chapterStartBtn.onclick = null;
+        chapterStartBtn.ontouchend = null;
+        setGameState('PLAYING');
       };
     }
     function removeWhiteBackground(src, callback) {
@@ -470,37 +459,31 @@
       img.src = src;
     }
 
-    // 🚀 啟動遊戲（關鍵修正）
-    async function startGame() {
+    // 🚀 啟動遊戲
+    function startGame() {
       if (gameStarted) return;
-      gameStarted = true;      
-      // 1. 立即解鎖 AudioContext
+      gameStarted = true;
+
       ensureAudioContext();
-      
-      // 2. 解鎖 SFX
       unlockSFX();
-      
-      // 3. 等待一小段時間確保音訊上下文完全解鎖
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // 4. 播放 BGM
-      playBGM();
-      
-      // 5. 隱藏標題畫面
-      titleScreen.style.opacity = 0;
-      setTimeout(() => { titleScreen.style.display = 'none'; }, 500);
-      
-    // 6. 啟動遊戲
+
+      // Hide title screen immediately
+      titleScreen.style.display = 'none';
+
       resize();
       updateHPUI();
+
+      // Show chapter 1 intro screen
       showChapterStart(1);
-      setTimeout(() => { loop(); }, 300);  
+
+      // Start game loop
+      loop();
     }
 
     startButton.addEventListener('click', startGame);
-    startButton.addEventListener('touchstart', (e) => { 
-      e.preventDefault(); 
-      startGame(); 
+    startButton.addEventListener('touchend', function(e) {
+      e.preventDefault();
+      startGame();
     });
 
     function shakeScreen() {
