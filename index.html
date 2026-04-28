@@ -185,22 +185,22 @@
      <button id="chapter-start-btn" class="btn" style="font-size:24px; padding:20px 60px;">點擊開始</button>
   </div>
 
-  <!-- 🎥 過場影片 (fullscreen, above everything) -->
-  <div id="video-overlay" style="
-    display:none; position:fixed; top:0; left:0; width:100%; height:100%;
-    background:#000; z-index:99999;
-    flex-direction:column; justify-content:center; align-items:center;">
-    <video id="chapter-video"
-      style="width:100%; height:100%; object-fit:contain;"
-      playsinline webkit-playsinline x5-playsinline
-      preload="auto">
-    </video>
-    <div id="video-ui" style="
-      position:absolute; bottom:40px; left:0; width:100%;
-      display:flex; flex-direction:column; align-items:center; gap:16px;">
-      <button id="video-play-btn" class="btn" style="font-size:22px; padding:18px 50px;">▶ 播放結關影片</button>
-      <button id="video-next-btn" class="btn" style="display:none;">繼續下一關 →</button>
-    </div>
+  <!-- 🎥 過場影片 - video lives directly in body, never inside display:none -->
+  <div id="video-overlay" style="display:none; position:fixed; top:0; left:0;
+    width:100%; height:100%; background:#000; z-index:99999;">
+  </div>
+  <video id="chapter-video"
+    style="display:none; position:fixed; top:0; left:0;
+      width:100%; height:100%; object-fit:contain; background:#000;
+      z-index:100000;"
+    playsinline webkit-playsinline x5-playsinline
+    preload="none">
+  </video>
+  <div id="video-ui" style="display:none; position:fixed; bottom:40px; left:0;
+    width:100%; z-index:100001;
+    flex-direction:column; align-items:center; gap:16px;">
+    <button id="video-play-btn" class="btn" style="font-size:22px; padding:18px 50px;">▶ 播放結關影片</button>
+    <button id="video-next-btn" class="btn" style="display:none;">繼續下一關 →</button>
   </div>
 
   <!-- 🏁 最終結束畫面 -->
@@ -305,84 +305,75 @@
     function playChapterVideo(level) {
       setGameState('VIDEO');
 
-      // Reset video element cleanly
+      const videoUI = document.getElementById('video-ui');
+
+      // Show black background overlay and UI bar
+      videoOverlay.style.display = 'block';
+      videoUI.style.display = 'flex';
+
+      // Show video element itself (it lives in body, never was display:none before)
+      chapterVideo.style.display = 'block';
+
+      // Clear any previous state
       chapterVideo.pause();
       chapterVideo.removeAttribute('src');
       chapterVideo.onended = null;
       chapterVideo.ontimeupdate = null;
       chapterVideo.oncanplay = null;
+      chapterVideo.onerror = null;
 
+      // Show play button, hide next button
       videoPlayBtn.style.display = 'block';
       videoPlayBtn.disabled = false;
       videoNextBtn.style.display = 'none';
-      videoOverlay.style.display = 'flex';
 
-      const showNextBtn = () => {
+      function showNextBtn() {
         videoNextBtn.style.display = 'block';
-      };
-
-      videoPlayBtn.onclick = null;
-      videoPlayBtn.ontouchend = null;
+      }
 
       function doPlay() {
         videoPlayBtn.style.display = 'none';
         videoPlayBtn.disabled = true;
+        videoPlayBtn.onclick = null;
+        videoPlayBtn.ontouchend = null;
 
-        // On iOS: set src, then wait for canplay before calling play()
         chapterVideo.muted = false;
         chapterVideo.volume = 1.0;
+        chapterVideo.onended = showNextBtn;
+        chapterVideo.onerror = showNextBtn; // if video fails, still allow user to continue
 
+        // iOS: attach canplay BEFORE setting src
         chapterVideo.oncanplay = function() {
           chapterVideo.oncanplay = null;
           chapterVideo.play().catch(() => {
-            // Audio blocked — try muted
             chapterVideo.muted = true;
-            chapterVideo.play().catch(() => {});
+            chapterVideo.play().catch(showNextBtn);
           });
         };
 
-        chapterVideo.onended = showNextBtn;
-        chapterVideo.ontimeupdate = () => {
-          if (chapterVideo.duration > 0 &&
-              chapterVideo.currentTime >= chapterVideo.duration - 0.5) {
-            showNextBtn();
-          }
-        };
-
-        // Set src LAST — this triggers the load on iOS
+        // Setting src last triggers iOS load pipeline
         chapterVideo.src = chapterVideos[level];
       }
-
-      videoPlayBtn.onclick = function(e) {
-        e.preventDefault();
-        doPlay();
-      };
-      videoPlayBtn.ontouchend = function(e) {
-        e.preventDefault();
-        doPlay();
-      };
-
-      videoNextBtn.onclick = null;
-      videoNextBtn.ontouchend = null;
 
       function doNext() {
         chapterVideo.pause();
         chapterVideo.onended = null;
         chapterVideo.ontimeupdate = null;
         chapterVideo.oncanplay = null;
+        chapterVideo.onerror = null;
         chapterVideo.removeAttribute('src');
+        chapterVideo.style.display = 'none';
         videoOverlay.style.display = 'none';
+        videoUI.style.display = 'none';
+        videoNextBtn.onclick = null;
+        videoNextBtn.ontouchend = null;
         if (level === 3) { showFinalEnd(); } else { nextLevel(); }
       }
 
-      videoNextBtn.onclick = function(e) {
-        e.preventDefault();
-        doNext();
-      };
-      videoNextBtn.ontouchend = function(e) {
-        e.preventDefault();
-        doNext();
-      };
+      videoPlayBtn.onclick = function(e) { e.preventDefault(); doPlay(); };
+      videoPlayBtn.ontouchend = function(e) { e.preventDefault(); doPlay(); };
+      videoNextBtn.onclick = function(e) { e.preventDefault(); doNext(); };
+      videoNextBtn.ontouchend = function(e) { e.preventDefault(); doNext(); };
     }
 
       
