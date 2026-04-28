@@ -304,9 +304,8 @@
 
     function playChapterVideo(level) {
       setGameState('VIDEO');
-      levelCompleteEl.style.display = 'none';
 
-      // Reset video element completely (critical for iOS re-use)
+      // Fully reset video before use
       chapterVideo.pause();
       chapterVideo.removeAttribute('src');
       chapterVideo.load();
@@ -315,25 +314,38 @@
       videoNextBtn.style.display = 'none';
       videoOverlay.style.display = 'flex';
 
-      // iOS/Android: user must tap to start video with audio
+      // iOS/Android: src must be set inside a real tap handler
       videoPlayBtn.onclick = () => {
         videoPlayBtn.style.display = 'none';
-
-        // Set src only at tap time — maximises iOS compatibility
         chapterVideo.src = chapterVideos[level];
         chapterVideo.muted = false;
         chapterVideo.volume = 1.0;
         chapterVideo.load();
+        chapterVideo.play().catch(() => {
+          chapterVideo.muted = true;
+          chapterVideo.play().catch(() => {});
+        });
+      };
 
-        const playPromise = chapterVideo.play();
-        if (playPromise !== undefined) {
-          playPromise.catch(() => {
-            // Fallback: muted play if audio blocked
-            chapterVideo.muted = true;
-            chapterVideo.play().catch(() => {});
-          });
+      const showNextBtn = () => { videoNextBtn.style.display = 'block'; };
+      chapterVideo.onended = showNextBtn;
+      chapterVideo.ontimeupdate = () => {
+        if (chapterVideo.duration > 0 &&
+            chapterVideo.currentTime >= chapterVideo.duration - 0.5) {
+          showNextBtn();
         }
       };
+
+      videoNextBtn.onclick = () => {
+        chapterVideo.pause();
+        chapterVideo.onended = null;
+        chapterVideo.ontimeupdate = null;
+        chapterVideo.removeAttribute('src');
+        chapterVideo.load();
+        videoOverlay.style.display = 'none';
+        if (level === 3) { showFinalEnd(); } else { nextLevel(); }
+      };
+    }
 
       chapterVideo.onended = () => {
         videoNextBtn.style.display = 'block';
@@ -565,19 +577,8 @@
     }
 
     function levelComplete() {
+      levelCompleteEl.style.display = 'none';
       playChapterVideo(currentLevel);
-      completeMsg.textContent = `🎉 恭喜您通過第${currentLevel}關`;
-      victoryText.textContent = victoryMessages[currentLevel];
-      const imgUrl = cityImages[currentLevel];
-      cityImg.src = imgUrl;
-      cityImg.classList.remove('hidden');
-      cityError.style.display = 'none';
-      cityImg.onload = () => console.log(`成功載入: ${imgUrl}`);
-      cityImg.onerror = () => { cityImg.classList.add('hidden'); cityError.style.display = 'block'; };
-      
-      // levelCompleteEl hidden — video overlay takes over directly
-      nextLevelBtn.textContent = currentLevel === 3 ? '🏁 結束遊戲' : `🚀 繼續第${currentLevel + 1}關`;
-      nextLevelBtn.onclick = currentLevel === 3 ? showFinalEnd : nextLevel;
     }
 
     function nextLevel() {
