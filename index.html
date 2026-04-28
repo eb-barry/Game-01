@@ -305,45 +305,83 @@
     function playChapterVideo(level) {
       setGameState('VIDEO');
 
-      // Fully reset video before use
+      // Reset video element cleanly
       chapterVideo.pause();
       chapterVideo.removeAttribute('src');
-      chapterVideo.load();
+      chapterVideo.onended = null;
+      chapterVideo.ontimeupdate = null;
+      chapterVideo.oncanplay = null;
 
       videoPlayBtn.style.display = 'block';
+      videoPlayBtn.disabled = false;
       videoNextBtn.style.display = 'none';
       videoOverlay.style.display = 'flex';
 
-      // iOS/Android: src must be set inside a real tap handler
-      videoPlayBtn.onclick = () => {
+      const showNextBtn = () => {
+        videoNextBtn.style.display = 'block';
+      };
+
+      videoPlayBtn.onclick = null;
+      videoPlayBtn.ontouchend = null;
+
+      function doPlay() {
         videoPlayBtn.style.display = 'none';
-        chapterVideo.src = chapterVideos[level];
+        videoPlayBtn.disabled = true;
+
+        // On iOS: set src, then wait for canplay before calling play()
         chapterVideo.muted = false;
         chapterVideo.volume = 1.0;
-        chapterVideo.load();
-        chapterVideo.play().catch(() => {
-          chapterVideo.muted = true;
-          chapterVideo.play().catch(() => {});
-        });
+
+        chapterVideo.oncanplay = function() {
+          chapterVideo.oncanplay = null;
+          chapterVideo.play().catch(() => {
+            // Audio blocked — try muted
+            chapterVideo.muted = true;
+            chapterVideo.play().catch(() => {});
+          });
+        };
+
+        chapterVideo.onended = showNextBtn;
+        chapterVideo.ontimeupdate = () => {
+          if (chapterVideo.duration > 0 &&
+              chapterVideo.currentTime >= chapterVideo.duration - 0.5) {
+            showNextBtn();
+          }
+        };
+
+        // Set src LAST — this triggers the load on iOS
+        chapterVideo.src = chapterVideos[level];
+      }
+
+      videoPlayBtn.onclick = function(e) {
+        e.preventDefault();
+        doPlay();
+      };
+      videoPlayBtn.ontouchend = function(e) {
+        e.preventDefault();
+        doPlay();
       };
 
-      const showNextBtn = () => { videoNextBtn.style.display = 'block'; };
-      chapterVideo.onended = showNextBtn;
-      chapterVideo.ontimeupdate = () => {
-        if (chapterVideo.duration > 0 &&
-            chapterVideo.currentTime >= chapterVideo.duration - 0.5) {
-          showNextBtn();
-        }
-      };
+      videoNextBtn.onclick = null;
+      videoNextBtn.ontouchend = null;
 
-      videoNextBtn.onclick = () => {
+      function doNext() {
         chapterVideo.pause();
         chapterVideo.onended = null;
         chapterVideo.ontimeupdate = null;
+        chapterVideo.oncanplay = null;
         chapterVideo.removeAttribute('src');
-        chapterVideo.load();
         videoOverlay.style.display = 'none';
         if (level === 3) { showFinalEnd(); } else { nextLevel(); }
+      }
+
+      videoNextBtn.onclick = function(e) {
+        e.preventDefault();
+        doNext();
+      };
+      videoNextBtn.ontouchend = function(e) {
+        e.preventDefault();
+        doNext();
       };
     }
 
