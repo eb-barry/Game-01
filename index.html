@@ -157,6 +157,7 @@
     <div id="title-rocket">🛸</div>
     <div style="font-size: 16px; color: rgba(255,255,255,0.6); margin-top: 20px;">擊落外星飛碟 · 保衛地球</div>
     <button id="start-button">點擊開始遊戲</button>
+    <img src="WE SHARE-330.png" style="position:fixed; top:24px; right:24px; width:10vw; min-width:50px; opacity:0.85; mix-blend-mode:screen; z-index:10000;">
   </div>
 
   <canvas id="game"></canvas>
@@ -180,8 +181,34 @@
     <button id="restart-btn" class="btn btn-red">🔄 重新開始</button>
   </div>
   
+  <div id="chapter-start" class="overlay" style="position:fixed; z-index:9998;">
+     <img id="chapter-img" src="" style="max-width:90%; max-height:60vh; border-radius:12px;">
+     <button id="chapter-start-btn" class="btn" style="font-size:24px; padding:20px 60px;">點擊開始</button>
+  </div>
+
+  <!-- 🎥 過場影片 - video lives directly in body, never inside display:none -->
+  <div id="video-overlay" style="display:none; position:fixed; top:0; left:0;
+    width:100%; height:100%; background:#000; z-index:99999;">
+  </div>
+  <video id="chapter-video"
+    style="display:none; position:fixed; top:0; left:0;
+      width:100%; height:100%; object-fit:contain; background:#000;
+      z-index:100000;"
+    playsinline webkit-playsinline x5-playsinline
+    preload="none">
+  </video>
+  <div id="video-ui" style="display:none; position:fixed; bottom:40px; left:0;
+    width:100%; z-index:100001;
+    flex-direction:column; align-items:center; gap:16px;">
+    <button id="video-play-btn" class="btn" style="font-size:22px; padding:18px 50px;">▶ 點擊繼續</button>
+    <button id="video-next-btn" class="btn" style="display:none;">繼續下一關 →</button>
+  </div>
+
+  <!-- 🏁 最終結束畫面 -->
   <div id="final-end" class="overlay">
-    <h1 style="color: #ffff00; font-size: 24px; line-height: 1.5;">🎮 遊戲結束<br>不要玩得太沉迷</h1>
+    <h1 style="color: #ffff00; font-size: 24px; line-height: 1.5;">
+    🎮 遊戲結束<br>不要玩得太沉迷
+    </h1>
     <button id="quit-btn" class="btn">結束遊戲</button>
   </div>
 
@@ -200,9 +227,15 @@
     const cityError = document.getElementById('city-error');
     const completeMsg = document.getElementById('complete-msg');
     const victoryText = document.getElementById('victory-text');
-    const nextLevelBtn = document.getElementById('next-level-btn');
-    const restartBtn = document.getElementById('restart-btn');
+    const nextLevelBtn = document.getElementById('next-level-btn');    
     const quitBtn = document.getElementById('quit-btn');
+    const chapterStartEl = document.getElementById('chapter-start');
+    const chapterImg = document.getElementById('chapter-img');
+    const chapterStartBtn = document.getElementById('chapter-start-btn');
+    const videoOverlay = document.getElementById('video-overlay');
+    const chapterVideo = document.getElementById('chapter-video');
+    const videoNextBtn = document.getElementById('video-next-btn');
+    const videoPlayBtn = document.getElementById('video-play-btn');
     const bgmEl = document.getElementById('bgm');
     const cannonEl = document.getElementById('cannon-sfx');
     const gameloseEl = document.getElementById('gamelose-sfx');
@@ -223,8 +256,9 @@
     let playerHP = 10;
     const MAX_HP = 10;
     let gameOver = false;
-    let gameEnded = false;
-    let isPaused = false;
+    let gameEnded = false;    
+       let gameState = 'TITLE'; 
+       // TITLE | CHAPTER | PLAYING | VIDEO | GAMEOVER | FINAL
     
     let playerX = 0;
     let playerY = 0;
@@ -241,6 +275,8 @@
     let stars = [];
     let ufoTimer = 0;
     let autoFireTimer = 0;
+    let isPaused = false;
+    const restartBtn = document.getElementById('restart-btn');
 
     const levelConfig = {
       1: { targets: 20, weapon: 'bomb', ufoSpeed: 1.0, bulletSpeed: 1.0, spawnRate: 75, fireRate: 95 },
@@ -255,8 +291,106 @@
     };
 
     const cityImages = { 1: 'TAIPEI.png', 2: 'TAICHUNG.png', 3: 'PARIS.png' };
+    const chapterImages = {
+      1: 'CHAPTER-01.png',
+      2: 'CHAPTER-02.png',
+      3: 'CHAPTER-03.png'
+    };
 
+    const chapterVideos = {
+      1: 'CHAPTER-01-ENDING.mp4',
+      2: 'CHAPTER-02-ENDING.mp4',
+      3: 'CHAPTER-03-ENDING.mp4'
+    };
+
+    function playChapterVideo(level) {
+      setGameState('VIDEO');
+      const videoUI = document.getElementById('video-ui');
+
+      // Reset cleanly
+      chapterVideo.pause();
+      chapterVideo.onended = null;
+      chapterVideo.onerror = null;
+      chapterVideo.oncanplay = null;
+      chapterVideo.removeAttribute('src');
+      chapterVideo.load();
+
+      // Pre-load src NOW (before tap) so iOS has time to buffer
+      chapterVideo.src = chapterVideos[level];
+      chapterVideo.muted = true;   // start muted so iOS allows preload
+      chapterVideo.load();
+
+      // Show UI
+      chapterVideo.style.display = 'block';
+      videoOverlay.style.display = 'block';
+      videoUI.style.display = 'flex';
+      videoPlayBtn.style.display = 'block';
+      videoPlayBtn.disabled = false;
+      videoNextBtn.style.display = 'none';
+
+      function showNextBtn() {
+        videoNextBtn.style.display = 'block';
+      }
+
+      chapterVideo.onended = showNextBtn;
+      chapterVideo.onerror = function() {
+        console.error('Video load error:', chapterVideos[level]);
+        showNextBtn();
+      };
+
+      function doPlay() {
+        // Neutralise both handlers immediately to prevent double-fire
+        videoPlayBtn.onclick = null;
+        videoPlayBtn.ontouchend = null;
+        videoPlayBtn.style.display = 'none';
+        videoPlayBtn.disabled = true;
+
+        // Unmute and play — called directly inside tap, gesture chain intact
+        chapterVideo.muted = false;
+        chapterVideo.volume = 1.0;
+        const p = chapterVideo.play();
+        if (p !== undefined) {
+          p.catch(() => {
+            // If unmuted play blocked, fall back to muted
+            chapterVideo.muted = true;
+            chapterVideo.play().catch(showNextBtn);
+          });
+        }
+      }
+
+      function doNext() {
+        videoPlayBtn.onclick = null;
+        videoPlayBtn.ontouchend = null;
+        videoNextBtn.onclick = null;
+        videoNextBtn.ontouchend = null;
+        chapterVideo.pause();
+        chapterVideo.onended = null;
+        chapterVideo.onerror = null;
+        chapterVideo.removeAttribute('src');
+        chapterVideo.load();
+        chapterVideo.style.display = 'none';
+        videoOverlay.style.display = 'none';
+        videoUI.style.display = 'none';
+        if (level === 3) { showFinalEnd(); } else { nextLevel(); }
+      }
+
+      videoPlayBtn.onclick = function(e) { e.preventDefault(); doPlay(); };
+      videoPlayBtn.ontouchend = function(e) { e.preventDefault(); doPlay(); };
+      videoNextBtn.onclick = function(e) { e.preventDefault(); doNext(); };
+      videoNextBtn.ontouchend = function(e) { e.preventDefault(); doNext(); };
+    }
+
+      
     // 🔊 解鎖 SFX 音訊（不含 BGM）
+    function setGameState(state) {
+      gameState = state;
+
+      if (state === 'PLAYING') {
+          playBGM();
+      } else {
+          pauseBGM();
+      }
+    }
     function unlockSFX() {
       [cannonEl, gameloseEl, nextLevelEl].forEach(el => {
         el.muted = false;
@@ -313,7 +447,30 @@
         window.speechSynthesis.speak(u);
       }, 100);
     }
+    function showChapterStart(level) {
+      chapterImg.src = chapterImages[level];
+      chapterStartEl.style.display = 'flex';
+      chapterStartEl.style.position = 'fixed';
+      chapterStartEl.style.zIndex = '9998';
+      setGameState('CHAPTER');
 
+      chapterStartBtn.onclick = null;
+      chapterStartBtn.ontouchend = null;
+
+      chapterStartBtn.onclick = function() {
+        chapterStartEl.style.display = 'none';
+        chapterStartBtn.onclick = null;
+        chapterStartBtn.ontouchend = null;
+        setGameState('PLAYING');
+      };
+      chapterStartBtn.ontouchend = function(e) {
+        e.preventDefault();
+        chapterStartEl.style.display = 'none';
+        chapterStartBtn.onclick = null;
+        chapterStartBtn.ontouchend = null;
+        setGameState('PLAYING');
+      };
+    }
     function removeWhiteBackground(src, callback) {
       const img = new Image();
       img.crossOrigin = 'anonymous';
@@ -335,37 +492,31 @@
       img.src = src;
     }
 
-    // 🚀 啟動遊戲（關鍵修正）
-    async function startGame() {
+    // 🚀 啟動遊戲
+    function startGame() {
       if (gameStarted) return;
       gameStarted = true;
-      
-      // 1. 立即解鎖 AudioContext
+
       ensureAudioContext();
-      
-      // 2. 解鎖 SFX
       unlockSFX();
-      
-      // 3. 等待一小段時間確保音訊上下文完全解鎖
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // 4. 播放 BGM
-      playBGM();
-      
-      // 5. 隱藏標題畫面
-      titleScreen.style.opacity = 0;
-      setTimeout(() => { titleScreen.style.display = 'none'; }, 500);
-      
-      // 6. 啟動遊戲
+
+      // Hide title screen immediately
+      titleScreen.style.display = 'none';
+
       resize();
       updateHPUI();
+
+      // Show chapter 1 intro screen
+      showChapterStart(1);
+
+      // Start game loop
       loop();
     }
 
     startButton.addEventListener('click', startGame);
-    startButton.addEventListener('touchstart', (e) => { 
-      e.preventDefault(); 
-      startGame(); 
+    startButton.addEventListener('touchend', function(e) {
+      e.preventDefault();
+      startGame();
     });
 
     function shakeScreen() {
@@ -440,25 +591,8 @@
     }
 
     function levelComplete() {
-      isPaused = true;
-      pauseBGM();
-      completeMsg.textContent = `🎉 恭喜您通過第${currentLevel}關`;
-      victoryText.textContent = victoryMessages[currentLevel];
-      const imgUrl = cityImages[currentLevel];
-      cityImg.src = imgUrl;
-      cityImg.classList.remove('hidden');
-      cityError.style.display = 'none';
-      cityImg.onload = () => console.log(`成功載入: ${imgUrl}`);
-      cityImg.onerror = () => { cityImg.classList.add('hidden'); cityError.style.display = 'block'; };
-      
-      nextLevelEl.currentTime = 0;
-      nextLevelEl.volume = 0.7;
-      nextLevelEl.play().catch(() => {});
-      
-      levelCompleteEl.style.display = 'flex';
-      speakTTS(`恭喜您通過第${currentLevel}關`);
-      nextLevelBtn.textContent = currentLevel === 3 ? '🏁 結束遊戲' : `🚀 繼續第${currentLevel + 1}關`;
-      nextLevelBtn.onclick = currentLevel === 3 ? showFinalEnd : nextLevel;
+      levelCompleteEl.style.display = 'none';
+      playChapterVideo(currentLevel);
     }
 
     function nextLevel() {
@@ -468,23 +602,20 @@
       levelEl.textContent = currentLevel;
       playerHP = MAX_HP; updateHPUI();
       clearGameObjects();
-      levelCompleteEl.style.display = 'none';
-      isPaused = false;
-      playBGM();
+      levelCompleteEl.style.display = 'none';      
+      showChapterStart(currentLevel);           
     }
 
     function showFinalEnd() {
-      levelCompleteEl.style.display = 'none';
+      setGameState('FINAL');
       finalEndEl.style.display = 'flex';
-      speakTTS('遊戲結束，不要玩得太沉迷');
     }
 
     async function triggerGameOver() {
       if (gameOver) return;
-      gameOver = true;
-      isPaused = true;
-      pauseBGM();
 
+      gameOver = true;
+      setGameState('GAMEOVER');
       for(let i=0; i<80; i++) {
         const angle = Math.random() * Math.PI * 2;
         const speed = Math.random() * 6 + 2;
@@ -522,8 +653,8 @@
       clearGameObjects();
       gameoverEl.style.display = 'none'; finalEndEl.style.display = 'none';
       instEl.style.opacity = 1;
-      playBGM();
       loop();
+      showChapterStart(1);
     }
 
     function quitGame() {
@@ -537,7 +668,11 @@
 
     function update() {
       if (gameOver || gameEnded) { updateParticles(); return; }
-      if (isPaused) return;
+
+      if (gameState !== 'PLAYING') {
+        updateParticles();
+        return;
+           }
 
       if (score > 0) instEl.style.opacity = 0;
       const cfg = levelConfig[currentLevel];
@@ -593,7 +728,6 @@
           break;
         }
       }
-
       for (let i = missiles.length - 1; i >= 0; i--) {
         let m = missiles[i];
         for (let j = ufoes.length - 1; j >= 0; j--) {
